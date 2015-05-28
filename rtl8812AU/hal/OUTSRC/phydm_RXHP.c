@@ -1305,7 +1305,7 @@ void odm_RXHP(
 	PMGNT_INFO	pMgntInfo = &(Adapter->MgntInfo);
 	pDIG_T		pDM_DigTable = &pDM_Odm->DM_DigTable;
 	pRXHP_T		pRX_HP_Table  = &pDM_Odm->DM_RXHP_Table;
-       PFALSE_ALARM_STATISTICS		FalseAlmCnt = (PFALSE_ALARM_STATISTICS)PhyDM_Get_Structure( pDM_Odm , PhyDM_FalseAlmCnt);
+       PFALSE_ALARM_STATISTICS		FalseAlmCnt = (PFALSE_ALARM_STATISTICS)PhyDM_Get_Structure( pDM_Odm , PHYDM_FALSEALMCNT);
 	
 	u1Byte              	i, j, sum;
 	u1Byte			Is40MHz;

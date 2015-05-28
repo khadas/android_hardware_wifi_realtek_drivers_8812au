@@ -90,6 +90,27 @@ const char *const GLBtcWifiFreqString[]={
 	"5G"
 };
 
+const char *const GLBtcIotPeerString[] = {
+	"UNKNOWN",
+	"REALTEK",
+	"REALTEK_92SE",
+	"BROADCOM",
+	"RALINK",
+	"ATHEROS",
+	"CISCO",
+	"MERU",	
+	"MARVELL",
+	"REALTEK_SOFTAP", /* peer is RealTek SOFT_AP, by Bohn, 2009.12.17 */
+	"SELF_SOFTAP", /* Self is SoftAP */
+	"AIRGO",
+	"INTEL", 
+	"RTK_APCLIENT", 
+	"REALTEK_81XX",	
+	"REALTEK_WOW",
+	"REALTEK_JAGUAR_BCUTAP",
+	"REALTEK_JAGUAR_CCUTAP"
+};
+
 #define HALBTCOUTSRC_AGG_CHK_WINDOW_IN_MS	8000
 
 BTC_COEXIST GLBtCoexist;
@@ -97,8 +118,9 @@ u8 GLBtcWiFiInScanState;
 u8 GLBtcWiFiInIQKState;
 u8 GLBtcWiFiInIPS;
 u8 GLBtcWiFiInLPS;
+u8 GLBtcBtCoexAliveRegistered;
 
-u32 GLBtcDbgType[BTC_MSG_MAX];
+u32 GLBtcDbgType[COMP_MAX];
 u8 GLBtcDbgBuf[BT_TMP_BUF_SIZE];
 
 typedef struct _btcoexdbginfo
@@ -162,26 +184,8 @@ static void halbtcoutsrc_DbgInit(void)
 {
 	u8	i;
 
-	for (i=0; i<BTC_MSG_MAX; i++)
+	for (i = 0; i < COMP_MAX; i++)
 		GLBtcDbgType[i] = 0;
-
-	GLBtcDbgType[BTC_MSG_INTERFACE]			= 	\
-//			INTF_INIT								|
-//			INTF_NOTIFY							|
-			0;
-
-	GLBtcDbgType[BTC_MSG_ALGORITHM]			= 	\
-//			ALGO_BT_RSSI_STATE					|
-//			ALGO_WIFI_RSSI_STATE					|
-//			ALGO_BT_MONITOR						|
-//			ALGO_TRACE							|
-//			ALGO_TRACE_FW						|
-//			ALGO_TRACE_FW_DETAIL				|
-//			ALGO_TRACE_FW_EXEC					|
-//			ALGO_TRACE_SW						|
-//			ALGO_TRACE_SW_DETAIL				|
-//			ALGO_TRACE_SW_EXEC					|
-			0;
 }
 
 static u8 halbtcoutsrc_IsCsrBtCoex(PBTC_COEXIST pBtCoexist)
@@ -240,7 +244,7 @@ void halbtcoutsrc_NormalLps(PBTC_COEXIST pBtCoexist)
 	PADAPTER padapter;
 
 
-	BTC_PRINT(BTC_MSG_ALGORITHM, ALGO_TRACE, ("[BTCoex], Normal LPS behavior!!!\n"));
+	RT_TRACE(COMP_COEX, DBG_LOUD, ("[BTCoex], Normal LPS behavior!!!\n"));
 
 	padapter = pBtCoexist->Adapter;
 
@@ -286,6 +290,9 @@ void halbtcoutsrc_LeaveLowPower(PBTC_COEXIST pBtCoexist)
 	timeout = 30;
 #endif // !LPS_RPWM_WAIT_MS
 
+	if (GLBtcBtCoexAliveRegistered == _TRUE)
+		return;
+
 	stime = rtw_get_current_time();
 	do {
 		ready = rtw_register_task_alive(padapter, BTCOEX_ALIVE);
@@ -298,6 +305,8 @@ void halbtcoutsrc_LeaveLowPower(PBTC_COEXIST pBtCoexist)
 
 		rtw_msleep_os(1);
 	} while (1);
+
+	GLBtcBtCoexAliveRegistered = _TRUE;
 #endif // CONFIG_LPS_LCLK
 }
 
@@ -310,9 +319,13 @@ void halbtcoutsrc_NormalLowPower(PBTC_COEXIST pBtCoexist)
 #ifdef CONFIG_LPS_LCLK
 	PADAPTER padapter;
 
+	if (GLBtcBtCoexAliveRegistered == _FALSE)
+		return;
 
 	padapter = pBtCoexist->Adapter;
 	rtw_unregister_task_alive(padapter, BTCOEX_ALIVE);
+
+	GLBtcBtCoexAliveRegistered = _FALSE;
 #endif // CONFIG_LPS_LCLK
 }
 
@@ -352,7 +365,7 @@ void halbtcoutsrc_AggregationCheck(PBTC_COEXIST pBtCoexist)
 
 	if (pBtCoexist->btInfo.bRejectAggPkt)
 	{
-		rtw_btcoex_RejectApAggregatedPacket(padapter, _TRUE);
+		bNeedToAct = _TRUE;
 		pBtCoexist->btInfo.bPreRejectAggPkt = pBtCoexist->btInfo.bRejectAggPkt;
 	}
 	else
@@ -379,13 +392,10 @@ void halbtcoutsrc_AggregationCheck(PBTC_COEXIST pBtCoexist)
 			}
 			pBtCoexist->btInfo.preAggBufSize = pBtCoexist->btInfo.aggBufSize;
 		}
-
-		if (bNeedToAct)
-		{
-			rtw_btcoex_RejectApAggregatedPacket(padapter, _TRUE);
-			rtw_btcoex_RejectApAggregatedPacket(padapter, _FALSE);
-		}
 	}
+
+	if (bNeedToAct)
+		rtw_btcoex_rx_ampdu_apply(padapter);
 }
 
 u8 halbtcoutsrc_IsWifiBusy(PADAPTER padapter)
@@ -503,9 +513,10 @@ u32 halbtcoutsrc_GetBtPatchVer(PBTC_COEXIST pBtCoexist)
 	u8 btFwVer = 0x0;
 	u8 cnt = 0;
 
-#if 0
+#ifdef CONFIG_BT_COEXIST_SOCKET_TRX
 	if (!pBtCoexist->btInfo.btRealFwVer && cnt<=5)
 	{
+#if 0
 		if (halbtcoutsrc_IsHwMailboxExist(pBtCoexist))
 		{	// mailbox exists, through mailbox
 			if (NDBG_GetBtFwVersion(pBtCoexist->Adapter, &btRealFwVer, &btFwVer))
@@ -520,6 +531,8 @@ u32 halbtcoutsrc_GetBtPatchVer(PBTC_COEXIST pBtCoexist)
 			}
 		}
 		else	// no mailbox, query bt patch version through stack.
+#endif
+		// query bt patch version through socket.
 		{
 			u1Byte	dataLen=2;
 			u1Byte	buf[4] = {0};
@@ -529,7 +542,7 @@ u32 halbtcoutsrc_GetBtPatchVer(PBTC_COEXIST pBtCoexist)
 		}
 		cnt++;
 	}
-#endif
+#endif //CONFIG_BT_COEXIST_SOCKET_TRX
 	return pBtCoexist->btInfo.btRealFwVer;
 }
 
@@ -557,10 +570,10 @@ static u8 halbtcoutsrc_GetWifiScanAPNum(PADAPTER padapter)
 	pmlmeext = &padapter->mlmeextpriv;
 
 	if (GLBtcWiFiInScanState == _FALSE) {
-		if (pmlmeext->sitesurvey_res.bss_cnt > 0xFF)
+		if (pmlmepriv->num_of_scanned > 0xFF)
 			scan_AP_num = 0xFF;
 		else
-			scan_AP_num = (u8)pmlmeext->sitesurvey_res.bss_cnt;
+			scan_AP_num = (u8)pmlmepriv->num_of_scanned;
 	}
 
 	return scan_AP_num;
@@ -700,6 +713,10 @@ u8 halbtcoutsrc_Get(void *pBtcContext, u8 getType, void *pOutBuf)
 		case BTC_GET_BL_EXT_SWITCH:
 			*pu8 = _FALSE;
 			break;
+		case BTC_GET_BL_IS_ASUS_8723B:
+			/* Always return FALSE in linux driver since this case is added only for windows driver */
+			*pu8 = _FALSE;
+			break;
 
 		case BTC_GET_S4_WIFI_RSSI:
 			*pS4Tmp = halbtcoutsrc_GetWifiRssi(padapter);
@@ -770,7 +787,32 @@ u8 halbtcoutsrc_Get(void *pBtcContext, u8 getType, void *pOutBuf)
 			*pU1Tmp = halbtcoutsrc_GetWifiScanAPNum(padapter);
 			break;
 		case BTC_GET_U1_ANT_TYPE:
-			*pU1Tmp = (u1Byte)BTC_ANT_TYPE_0;
+			switch(pHalData->bt_coexist.btAntisolation)
+			{
+				case 0:
+					*pU1Tmp = (u1Byte)BTC_ANT_TYPE_0;
+					pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_0;
+					break;
+				case 1:
+					*pU1Tmp = (u1Byte)BTC_ANT_TYPE_1;
+					pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_1;
+					break;
+				case 2:
+					*pU1Tmp = (u1Byte)BTC_ANT_TYPE_2;
+					pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_2;
+					break;
+				case 3:
+					*pU1Tmp = (u1Byte)BTC_ANT_TYPE_3;
+					pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_3;
+					break;
+				case 4:
+					*pU1Tmp = (u1Byte)BTC_ANT_TYPE_4;
+					pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_4;
+					break;
+			}
+			break;
+		case BTC_GET_U1_IOT_PEER:
+			*pU1Tmp = mlmeext->mlmext_info.assoc_AP_vendor;
 			break;
 
 		//=======1Ant===========
@@ -916,27 +958,26 @@ u8 halbtcoutsrc_Set(void *pBtcContext, u8 setType, void *pInBuf)
 
 		case BTC_SET_ACT_SEND_MIMO_PS:
 			{
-                                u8 newMimoPsMode = 3;
-                                struct mlme_ext_priv	*pmlmeext = &(padapter->mlmeextpriv);
-	                        struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
+				u8 newMimoPsMode = 3;
+				struct mlme_ext_priv *pmlmeext = &(padapter->mlmeextpriv);
+				struct mlme_ext_info *pmlmeinfo = &(pmlmeext->mlmext_info);
 
-                                // *pU1Tmp = 0 use SM_PS static type 
-                                // *pU1Tmp = 1 disable SM_PS
-                                if(*pU1Tmp==0)
-                        		newMimoPsMode = WLAN_HT_CAP_SM_PS_STATIC;
-                        	else if(*pU1Tmp==1)
-                        		newMimoPsMode = WLAN_HT_CAP_SM_PS_DISABLED;
-                                                  
-				if (check_fwstate(&padapter->mlmepriv, WIFI_ASOC_STATE) == _TRUE)
-				{
-					//issue_action_SM_PS(padapter, get_my_bssid(&(pmlmeinfo->network)), newMimoPsMode);
-                                        issue_action_SM_PS_wait_ack(padapter, get_my_bssid(&(pmlmeinfo->network)), newMimoPsMode, 3, 1);
+				/* *pU1Tmp = 0 use SM_PS static type */
+				/* *pU1Tmp = 1 disable SM_PS */
+				if (*pU1Tmp == 0)
+					newMimoPsMode = WLAN_HT_CAP_SM_PS_STATIC;
+				else if (*pU1Tmp == 1)
+					newMimoPsMode = WLAN_HT_CAP_SM_PS_DISABLED;
+												  
+				if (check_fwstate(&padapter->mlmepriv , WIFI_ASOC_STATE) == _TRUE) {
+					/* issue_action_SM_PS(padapter, get_my_bssid(&(pmlmeinfo->network)), newMimoPsMode); */
+					issue_action_SM_PS_wait_ack(padapter , get_my_bssid(&(pmlmeinfo->network)) , newMimoPsMode, 3 , 1);
 				}
 			}
 			break;
 
 		case BTC_SET_ACT_CTRL_BT_INFO:
-#if 0
+#ifdef CONFIG_BT_COEXIST_SOCKET_TRX
 			{
 				u8 dataLen = *pU1Tmp;
 				u8 tmpBuf[20];
@@ -944,15 +985,15 @@ u8 halbtcoutsrc_Set(void *pBtcContext, u8 setType, void *pInBuf)
 				{
 					_rtw_memcpy(tmpBuf, pU1Tmp+1, dataLen);
 				}
-//				BT_SendEventExtBtInfoControl(padapter, dataLen, &tmpBuf[0]);
+				BT_SendEventExtBtInfoControl(padapter, dataLen, &tmpBuf[0]);
 			}
-#else
+#else //!CONFIG_BT_COEXIST_SOCKET_TRX
 			ret = _FALSE;
-#endif
+#endif //CONFIG_BT_COEXIST_SOCKET_TRX
 			break;
 
 		case BTC_SET_ACT_CTRL_BT_COEX:
-#if 0
+#ifdef CONFIG_BT_COEXIST_SOCKET_TRX
 			{
 				u8 dataLen = *pU1Tmp;
 				u8 tmpBuf[20];
@@ -960,11 +1001,11 @@ u8 halbtcoutsrc_Set(void *pBtcContext, u8 setType, void *pInBuf)
 				{
 					_rtw_memcpy(tmpBuf, pU1Tmp+1, dataLen);
 				}
-//				BT_SendEventExtBtCoexControl(padapter, _FALSE, dataLen, &tmpBuf[0]);
+				BT_SendEventExtBtCoexControl(padapter, _FALSE, dataLen, &tmpBuf[0]);
 			}
-#else
+#else //!CONFIG_BT_COEXIST_SOCKET_TRX
 			ret = _FALSE;
-#endif
+#endif //CONFIG_BT_COEXIST_SOCKET_TRX
 			break;
 		case BTC_SET_ACT_CTRL_8723B_ANT:
 #if 0
@@ -1094,8 +1135,9 @@ void halbtcoutsrc_DisplayCoexStatistics(PBTC_COEXIST pBtCoexist)
 		pBtCoexist->statistics.cntScanNotify, pBtCoexist->statistics.cntConnectNotify,
 		pBtCoexist->statistics.cntMediaStatusNotify);
 	CL_PRINTF(cliBuf);
-	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d", "Special pkt/Bt info", \
-		pBtCoexist->statistics.cntSpecialPacketNotify, pBtCoexist->statistics.cntBtInfoNotify);
+	CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %d/ %d/ %d", "Special pkt/Bt info/ bind", 
+		pBtCoexist->statistics.cntSpecialPacketNotify, pBtCoexist->statistics.cntBtInfoNotify,
+		pBtCoexist->statistics.cntBind);
 	CL_PRINTF(cliBuf);
 #endif
 }
@@ -1150,6 +1192,11 @@ void halbtcoutsrc_DisplayWifiStatus(PBTC_COEXIST pBtCoexist)
 		((wifiLinkStatus&WIFI_HS_CONNECTED)? 1:0), ((wifiLinkStatus&WIFI_P2P_GO_CONNECTED)? 1:0), 
 		((wifiLinkStatus&WIFI_P2P_GC_CONNECTED)? 1:0) );
 	CL_PRINTF(cliBuf);
+
+	if (wifiLinkStatus&WIFI_STA_CONNECTED) {
+		CL_SPRINTF(cliBuf, BT_TMP_BUF_SIZE, "\r\n %-35s = %s", "IOT Peer", GLBtcIotPeerString[padapter->mlmeextpriv.mlmext_info.assoc_AP_vendor]);
+		CL_PRINTF(cliBuf);
+	}
 
 	pBtCoexist->fBtcGet(pBtCoexist, BTC_GET_BL_HS_OPERATION, &bBtHsOn);
 	pBtCoexist->fBtcGet(pBtCoexist, BTC_GET_U1_WIFI_DOT11_CHNL, &wifiChnl);
@@ -1423,6 +1470,25 @@ void halbtcoutsrc_SetBtReg(void *pBtcContext, u8 RegType, u32 RegAddr, u32 Data)
 	}
 }
 
+u8 halbtcoutsrc_SetBtAntDetection(void *pBtcContext, u8 txTime, u8 btChnl)
+{
+/* Always return _FALSE since we don't implement this yet */	
+#if 0	
+	PBTC_COEXIST		pBtCoexist = (PBTC_COEXIST)pBtcContext;
+	PADAPTER			Adapter = pBtCoexist->Adapter;
+	u1Byte				btCanTx = 0;
+	BOOLEAN			bStatus = FALSE;
+
+	bStatus = NDBG_SetBtAntDetection(Adapter, txTime, btChnl, &btCanTx);
+	if (bStatus && btCanTx)
+		return _TRUE;
+	else
+		return _FALSE;
+#else
+	return _FALSE;
+#endif
+}
+
 u32 halbtcoutsrc_GetBtReg(void *pBtcContext, u8 RegType, u32 RegAddr)
 {
 	/* To be implemented. Always return 0 temporarily */
@@ -1444,6 +1510,20 @@ void halbtcoutsrc_FillH2cCmd(void *pBtcContext, u8 elementId, u32 cmdLen, u8 *pC
 //====================================
 //		Extern functions called by other module
 //====================================
+u8 EXhalbtcoutsrc_IsTfbgaPackageType(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+#ifdef CONFIG_RTL8723B
+	if ((pHalData->PackageType == PACKAGE_TFBGA79) || (pHalData->PackageType == PACKAGE_TFBGA80)
+		|| (pHalData->PackageType == PACKAGE_TFBGA90)) {
+		return _TRUE;
+	}		
+#endif
+
+	return _FALSE;
+}
+
 u8 EXhalbtcoutsrc_BindBtCoexWithAdapter(void *padapter)
 {
 	PBTC_COEXIST		pBtCoexist=&GLBtCoexist;
@@ -1474,6 +1554,16 @@ u8 EXhalbtcoutsrc_BindBtCoexWithAdapter(void *padapter)
 #endif
 	// set default antenna position to main  port
 	pBtCoexist->boardInfo.btdmAntPos = BTC_ANTENNA_AT_MAIN_PORT;	
+
+	pBtCoexist->boardInfo.btdmAntDetFinish = _FALSE;
+	pBtCoexist->boardInfo.btdmAntNumByAntDet = 1;
+
+	pBtCoexist->boardInfo.bTfbgaPackage = EXhalbtcoutsrc_IsTfbgaPackageType((PADAPTER)padapter);
+
+	if (pBtCoexist->boardInfo.bTfbgaPackage)
+		RT_TRACE(COMP_COEX, DBG_LOUD, ("[BTCoex], Package Type = TFBGA\n"));
+	else
+		RT_TRACE(COMP_COEX, DBG_LOUD, ("[BTCoex], Package Type = Non-TFBGA\n"));
 	
 	return _TRUE;
 }
@@ -1520,6 +1610,7 @@ u8 EXhalbtcoutsrc_InitlizeVariables(void *padapter)
 	pBtCoexist->fBtcSet = halbtcoutsrc_Set;
 	pBtCoexist->fBtcGetBtReg = halbtcoutsrc_GetBtReg;
 	pBtCoexist->fBtcSetBtReg = halbtcoutsrc_SetBtReg;
+	pBtCoexist->fBtcSetBtAntDetection = halbtcoutsrc_SetBtAntDetection;
 
 	pBtCoexist->cliBuf = &GLBtcDbgBuf[0];
 
@@ -1532,6 +1623,8 @@ u8 EXhalbtcoutsrc_InitlizeVariables(void *padapter)
 	GLBtcWiFiInIPS = _FALSE;
 
 	GLBtcWiFiInLPS = _FALSE;
+
+	GLBtcBtCoexAliveRegistered = _FALSE;
 
 	return _TRUE;
 }
@@ -2454,12 +2547,41 @@ void EXhalbtcoutsrc_DbgControl(PBTC_COEXIST pBtCoexist, u8 opCode, u8 opLen, u8 
 //	halbtcoutsrc_NormalLowPower(pBtCoexist);
 }
 
+#if 0
+VOID
+EXhalbtcoutsrc_AntennaDetection(
+	IN	PBTC_COEXIST			pBtCoexist,
+	IN	u4Byte					centFreq,
+	IN	u4Byte					offset,
+	IN	u4Byte					span,
+	IN	u4Byte					seconds
+	)
+{
+	if(!halbtcoutsrc_IsBtCoexistAvailable(pBtCoexist))
+		return;
+
+	/* Need to refine the following power save operations to enable this function in the future */	
+#if 0
+	IPSDisable(pBtCoexist->Adapter, FALSE, 0);
+	LeisurePSLeave(pBtCoexist->Adapter, LPS_DISABLE_BT_COEX);
+#endif
+
+	if(IS_HARDWARE_TYPE_8723B(pBtCoexist->Adapter))
+	{
+		if(pBtCoexist->boardInfo.btdmAntNum == 1)
+			EXhalbtc8723b1ant_AntennaDetection(pBtCoexist, centFreq, offset, span, seconds);
+	}
+
+	//IPSReturn(pBtCoexist->Adapter, 0xff);
+}
+#endif
+
 void EXhalbtcoutsrc_StackUpdateProfileInfo(void)
 {
-#if 0
+#ifdef CONFIG_BT_COEXIST_SOCKET_TRX
 	PBTC_COEXIST pBtCoexist = &GLBtCoexist;
-	PADAPTER padapter = (PADAPTER)GLBtCoexist.padapter;
-	PBT_MGNT pBtMgnt = &padapter->MgntInfo.BtInfo.BtMgnt;
+	PADAPTER padapter = (PADAPTER)GLBtCoexist.Adapter;
+	PBT_MGNT pBtMgnt = &padapter->coex_info.BtMgnt;
 	u8 i;
 
 	if (!halbtcoutsrc_IsBtCoexistAvailable(pBtCoexist))
@@ -2511,7 +2633,7 @@ void EXhalbtcoutsrc_StackUpdateProfileInfo(void)
 			pBtCoexist->stackInfo.bUnknownAclExist = _TRUE;
 		}
 	}
-#endif
+#endif //CONFIG_BT_COEXIST_SOCKET_TRX
 }
 
 void EXhalbtcoutsrc_UpdateMinBtRssi(s8 btRssi)
@@ -2672,6 +2794,33 @@ void EXhalbtcoutsrc_DisplayBtCoexInfo(PBTC_COEXIST pBtCoexist)
 	}
 
 	halbtcoutsrc_NormalLowPower(pBtCoexist);
+}
+
+void EXhalbtcoutsrc_DisplayAntDetection(PBTC_COEXIST pBtCoexist)
+{
+	if(!halbtcoutsrc_IsBtCoexistAvailable(pBtCoexist))
+		return;
+
+	halbtcoutsrc_LeaveLowPower(pBtCoexist);
+
+	if(IS_HARDWARE_TYPE_8723B(pBtCoexist->Adapter))
+	{
+		if(pBtCoexist->boardInfo.btdmAntNum == 1)
+			EXhalbtc8723b1ant_DisplayAntDetection(pBtCoexist);
+	}
+	
+	halbtcoutsrc_NormalLowPower(pBtCoexist);
+}
+
+void EXhalbtcoutsrc_BTOffOnNotify(PBTC_COEXIST pBtCoexist, u8 bBTON)
+{
+
+	if (IS_HARDWARE_TYPE_8812(pBtCoexist->Adapter))
+	{
+		if (pBtCoexist->boardInfo.btdmAntNum == 2)
+			EXhalbtc8812a2ant_BTOffOnNotify(pBtCoexist, (bBTON == _TRUE)?BTC_BT_ON:BTC_BT_OFF);
+	}
+
 }
 
 static void halbt_InitHwConfig92C(PADAPTER padapter)
@@ -2924,6 +3073,11 @@ void hal_btcoex_Hanlder(PADAPTER padapter)
 	EXhalbtcoutsrc_Periodical(&GLBtCoexist);
 }
 
+s32 hal_btcoex_IsBTCoexRejectAMPDU(PADAPTER padapter)
+{
+	return (s32)GLBtCoexist.btInfo.bRejectAggPkt;
+}
+
 s32 hal_btcoex_IsBTCoexCtrlAMPDUSize(PADAPTER padapter)
 {
 	return (s32)GLBtCoexist.btInfo.bBtCtrlAggBufSize;
@@ -2991,22 +3145,23 @@ u8 hal_btcoex_LpsVal(PADAPTER padapter)
 u32 hal_btcoex_GetRaMask(PADAPTER padapter)
 {
 	if (!hal_btcoex_IsBtExist(padapter))
-                return 0;
+		return 0;
 
 	if (GLBtCoexist.btInfo.bBtDisabled)
-                return 0;
+		return 0;
 
-        // Modify by YiWei , suggest by Cosa and Jenyu
-        // Remove the limit antenna number , because 2 antenna case (ex: 8192eu)also want to get BT coex report rate mask.
-	//if (GLBtCoexist.boardInfo.btdmAntNum != 1)
-        //        return 0;
+		/* Modify by YiWei , suggest by Cosa and Jenyu
+		 * Remove the limit antenna number , because 2 antenna case (ex: 8192eu)also want to get BT coex report rate mask.
+		 */
+	/*if (GLBtCoexist.boardInfo.btdmAntNum != 1)
+		return 0;*/
 
 	return GLBtCoexist.btInfo.raMask;
 }
 
 void hal_btcoex_RecordPwrMode(PADAPTER padapter, u8 *pCmdBuf, u8 cmdLen)
 {
-	BTC_PRINT(BTC_MSG_ALGORITHM, ALGO_TRACE_FW_EXEC, ("[BTCoex], FW write pwrModeCmd=0x%04x%08x\n",
+	RT_TRACE(COMP_COEX, DBG_LOUD, ("[BTCoex], FW write pwrModeCmd=0x%04x%08x\n",
 		pCmdBuf[0]<<8|pCmdBuf[1],
 		pCmdBuf[2]<<24|pCmdBuf[3]<<16|pCmdBuf[4]<<8|pCmdBuf[5]));
 
@@ -3032,7 +3187,7 @@ void hal_btcoex_SetDBG(PADAPTER padapter, u32 *pDbgModule)
 	if (NULL == pDbgModule)
 		return;
 
-	for (i=0; i<BTC_MSG_MAX; i++)
+	for (i = 0; i < COMP_MAX; i++)
 		GLBtcDbgType[i] = pDbgModule[i];
 }
 
@@ -3064,14 +3219,14 @@ u32 hal_btcoex_GetDBG(PADAPTER padapter, u8 *pStrBuf, u32 bufSize)
 	leftSize -= count;
 
 	count = rtw_sprintf(pstr, leftSize,
-		"INTERFACE / ALGORITHM: 0x%08X / 0x%08X\n\n",
-		GLBtcDbgType[BTC_MSG_INTERFACE],
-		GLBtcDbgType[BTC_MSG_ALGORITHM]);
+		"COMP_COEX: 0x%08X\n\n",
+		GLBtcDbgType[COMP_COEX]);
 	if ((count < 0) || (count >= leftSize))
 		goto exit;
 	pstr += count;
 	leftSize -= count;
 
+#if 0
 	count = rtw_sprintf(pstr, leftSize, "INTERFACE Debug Setting Definition:\n");
 	if ((count < 0) || (count >= leftSize))
 		goto exit;
@@ -3155,6 +3310,7 @@ u32 hal_btcoex_GetDBG(PADAPTER padapter, u8 *pStrBuf, u32 bufSize)
 		goto exit;
 	pstr += count;
 	leftSize -= count;
+#endif
 
 exit:
 	count = pstr - pStrBuf;
@@ -3182,27 +3338,66 @@ u8 hal_btcoex_IsBtLinkExist(PADAPTER padapter)
 	return _FALSE;
 }
 
+void hal_btcoex_SetBtPatchVersion(PADAPTER padapter,u16 btHciVer,u16 btPatchVer)
+{
+	EXhalbtcoutsrc_SetBtPatchVersion(btHciVer,btPatchVer);
+}
+
+void hal_btcoex_SetHciVersion(PADAPTER padapter, u16 hciVersion)
+{
+	EXhalbtcoutsrc_SetHciVersion(hciVersion);
+}
+
+void hal_btcoex_StackUpdateProfileInfo(void)
+{
+	EXhalbtcoutsrc_StackUpdateProfileInfo();
+}
+
+void hal_btcoex_BTOffOnNotify(PADAPTER padapter, u8 bBTON)
+{
+	EXhalbtcoutsrc_BTOffOnNotify(&GLBtCoexist, bBTON);
+}
+
 /*
- * Description:
+ *	Description:
  *	Setting BT coex antenna isolation type .
- *                         coex mechanisn/ spital stream/ best throughput
- *      anttype = 0  ,  PSTDMA  / 2SS / 0.5T , bad isolation      (<20dB) for 2,3 antenna
- *      anttype = 1  ,  PSTDMA  / 1SS / 0.5T , normal isolaiton (>20dB) for 2 antenna
- *      anttype = 2  ,  TDMA      / 2SS / T      , normal isolaiton (>20dB) for 3 antenna
- *      anttype = 3  ,  no TDMA / 1SS / 0.5T , good isolation    (>40dB) for 2 antenna
- *      anttype = 4  ,  no TDMA / 2SS / T      , good isolation    (>40dB) for 3 antenna
- *    wifi only throughput ~ T
- *    wifi/BT share one antenna with SPDT
+ *	coex mechanisn/ spital stream/ best throughput
+ *	anttype = 0	,	PSTDMA	/	2SS	/	0.5T	,	bad isolation , WiFi/BT ANT Distance<15cm , (<20dB) for 2,3 antenna
+ *	anttype = 1	,	PSTDMA	/	1SS	/	0.5T	,	normal isolaiton , 50cm>WiFi/BT ANT Distance>15cm , (>20dB) for 2 antenna
+ *	anttype = 2	,	TDMA	/	2SS	/	T ,		normal isolaiton , 50cm>WiFi/BT ANT Distance>15cm , (>20dB) for 3 antenna
+ *	anttype = 3	,	no TDMA	/	1SS	/	0.5T	,	good isolation , WiFi/BT ANT Distance >50cm , (>40dB) for 2 antenna
+ *	anttype = 4	,	no TDMA	/	2SS	/	T ,		good isolation , WiFi/BT ANT Distance >50cm , (>40dB) for 3 antenna
+ *	wifi only throughput ~ T
+ *	wifi/BT share one antenna with SPDT
  */
 void hal_btcoex_SetAntIsolationType(PADAPTER padapter, u8 anttype)
 {
-        PHAL_DATA_TYPE	pHalData;
+		PHAL_DATA_TYPE pHalData;
+		PBTC_COEXIST	pBtCoexist = &GLBtCoexist;
 
-        //DBG_871X("####%s , anttype = %d  , %d \n", __FUNCTION__,anttype,__LINE__);
-        pHalData = GET_HAL_DATA(padapter);
+		/*DBG_871X("####%s , anttype = %d  , %d\n" , __func__ , anttype , __LINE__); */
+		pHalData = GET_HAL_DATA(padapter);
 
 
-        pHalData->bt_coexist.btAntisolation= anttype;
+		pHalData->bt_coexist.btAntisolation = anttype;
+
+		switch (pHalData->bt_coexist.btAntisolation) {
+		case 0:
+				pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_0;
+				break;
+		case 1:
+				pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_1;
+				break;
+		case 2:
+				pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_2;
+				break;
+		case 3:
+				pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_3;
+				break;
+		case 4:
+				pBtCoexist->boardInfo.antType = (u1Byte)BTC_ANT_TYPE_4;
+				break;
+		}
 
 }
 
@@ -3213,108 +3408,89 @@ hal_btcoex_ParseAntIsolationConfigFile(
   char*			buffer
 )
 {
-        HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-        u32	i = 0 , j=0;
-        char	*szLine, *ptmp;
-        int	rtStatus = _SUCCESS;
-        char param_value_string[10];
-        u8 param_value;
-        u8 anttype = 4;
-        
-        u8 ant_num=3, ant_distance=50;
-        
-        typedef struct ant_isolation
-        {
-            char *param_name; // antenna isolation config parameter name 
-            u8 *value; // antenna isolation config parameter value
-        }ANT_ISOLATION;
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
+	u32	i = 0 , j = 0;
+	char	*szLine , *ptmp;
+	int rtStatus = _SUCCESS;
+	char param_value_string[10];
+	u8 param_value;
+	u8 anttype = 4;
+	
+	u8 ant_num = 3 , ant_distance = 50 , rfe_type = 1; 
+	
+	typedef struct ant_isolation {
+		char *param_name;  /* antenna isolation config parameter name */ 
+		u8 *value; /* antenna isolation config parameter value */
+	} ANT_ISOLATION;
 
-        ANT_ISOLATION ant_isolation_param[]= {
-                                                                                    {"ANT_NUMBER",&ant_num},
-                                                                                    {"ANT_DISTANCE",&ant_distance},
-                                                                                    {NULL,0}
-                                                                           };
+	ANT_ISOLATION ant_isolation_param[] = {
+												{"ANT_NUMBER" , &ant_num},
+												{"ANT_DISTANCE" , &ant_distance},
+												{"RFE_TYPE" , &rfe_type},												
+												{NULL , 0}
+										};
 
 
-        
-	//DBG_871X("===>Hal_ParseAntIsolationConfigFile()\n" );
-                    
+	
+	/* DBG_871X("===>Hal_ParseAntIsolationConfigFile()\n" ); */
+			
 	ptmp = buffer;
-	for (szLine = GetLineFromBuffer(ptmp); szLine != NULL; szLine = GetLineFromBuffer(ptmp))
-	{
-		// skip comment 
-		if ( IsCommentString( szLine ) ) {
-			continue;
-		}         
+	for (szLine = GetLineFromBuffer(ptmp) ; szLine != NULL; szLine = GetLineFromBuffer(ptmp)) {
+		/* skip comment */ 
+		if (IsCommentString(szLine))
+			continue;	 
 
-                //DBG_871X("%s : szLine = %s , strlen(szLine) = %d  \n", __FUNCTION__,szLine,strlen(szLine));
-                for ( j=0 ;ant_isolation_param[j].param_name != NULL ; j++ )
-                {
-                        if ( strstr(szLine,ant_isolation_param[j].param_name)!= NULL )
-                        {
-                                i=0;
-                                while ( i < strlen(szLine) )
-                                {
-                                        if (szLine[i] != '"')
-                                                ++i;
-                                        else
-                                        {
-                                                // skip only has one "
-                                                if( strpbrk(szLine, "\"") == strrchr(szLine, '"'))
-                                                {
-                                                        DBG_871X("Fail to parse parameters , format error!\n");
-                                                        break;
-                                                }
-                                                _rtw_memset( ( PVOID ) param_value_string, 0, 10 );
-                                                if ( ! ParseQualifiedString( szLine, &i, param_value_string, '"' , '"' ) ) {
-                                                        DBG_871X("Fail to parse parameters \n");
-                                                        return _FAIL;
-                                                }
-                                                else
-                                                {
-                                                        GetU1ByteIntegerFromStringInDecimal( param_value_string, ant_isolation_param[j].value );                                              
-                                                 }
-                                                break;
-                                        }
-                                }
-                        }
-                }
-        } 
+		/* DBG_871X("%s : szLine = %s , strlen(szLine) = %d\n" , __func__ , szLine , strlen(szLine));*/
+		for (j = 0 ; ant_isolation_param[j].param_name != NULL ; j++) {
+			if (strstr(szLine , ant_isolation_param[j].param_name) != NULL) {
+				i = 0;
+				while (i < strlen(szLine)) {
+					if (szLine[i] != '"')
+						++i;
+					else {
+						/* skip only has one " */
+						if (strpbrk(szLine , "\"") == strrchr(szLine , '"')) {
+							DBG_871X("Fail to parse parameters , format error!\n");
+							break;
+						}
+						_rtw_memset((PVOID)param_value_string , 0 , 10);
+						if (!ParseQualifiedString(szLine , &i , param_value_string , '"' , '"')) {
+							DBG_871X("Fail to parse parameters\n");
+							return _FAIL;
+						} else if (!GetU1ByteIntegerFromStringInDecimal(param_value_string , ant_isolation_param[j].value)) 
+							DBG_871X("Fail to GetU1ByteIntegerFromStringInDecimal\n");
 
-        // YiWei 20140716 , for BT coex antenna isolation control
-        if ( ant_num==3 && ant_distance>=50)
-        {
-                pHalData->EEPROMBluetoothCoexist = 0;
-                anttype = 4;
-        }
-        else if ( ant_num==2 && ant_distance>=50 ) 
-        {
-                anttype = 3;
-        }
-        else if ( ant_num==3 &&  ant_distance>=15 &&  ant_distance<50  ) 
-        {
-                anttype = 2;
-        }
-        else if ( ant_num==2 && ant_distance>=15 &&  ant_distance<50 ) 
-        {
-                anttype = 1;
-        }
-        else if ( (ant_num==2 && ant_distance<15) ||  (ant_num==3 && ant_distance<15)) 
-        {
-                anttype = 0;
-        } 
-        else
-        {
-                pHalData->EEPROMBluetoothCoexist = 1;
-                anttype = 1;             
-        }
+						break;
+					}
+				}
+			}
+		}
+	} 
 
-        hal_btcoex_SetAntIsolationType(Adapter, anttype); 
-                                                
-        DBG_871X("%s : ant_num = %d   \n", __FUNCTION__,ant_num);
-        DBG_871X("%s : ant_distance = %d  \n", __FUNCTION__,ant_distance);
-        //DBG_871X("<===Hal_ParseAntIsolationConfigFile()\n");
-        return rtStatus;    
+	/* YiWei 20140716 , for BT coex antenna isolation control */
+	/* rfe_type = 0 was SPDT , rfe_type = 1 was coupler */
+	if (ant_num == 3 && ant_distance >= 50) 
+		anttype = 3;
+	else if (ant_num == 2 && ant_distance >= 50 && rfe_type == 1)
+		anttype = 2;
+	else if (ant_num == 3 && ant_distance >= 15 && ant_distance < 50)
+		anttype = 2;
+	else if (ant_num == 2 && ant_distance >= 15 && ant_distance < 50 && rfe_type == 1)
+		anttype = 2;
+	else if ((ant_num == 2 && ant_distance < 15 && rfe_type == 1) || (ant_num == 3 && ant_distance < 15))
+		anttype = 1;
+	else if (ant_num == 2 && rfe_type == 0)
+		anttype = 0;
+	else 
+		anttype = 0;
+
+	hal_btcoex_SetAntIsolationType(Adapter, anttype); 
+						
+	DBG_871X("%s : ant_num = %d\n" , __func__ , ant_num);
+	DBG_871X("%s : ant_distance = %d\n" , __func__ , ant_distance);
+	DBG_871X("%s : rfe_type = %d\n" , __func__ , rfe_type);
+	/* DBG_871X("<===Hal_ParseAntIsolationConfigFile()\n"); */
+	return rtStatus;	
 }
 
 
@@ -3324,14 +3500,10 @@ hal_btcoex_AntIsolationConfig_ParaFile(
 	IN	char*	 	pFileName
 )
 {
-	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(Adapter);
-	int	rlen = 0, rtStatus = _FAIL;
-	//char	file_path[1024];
+	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(Adapter);
+	int	rlen = 0 , rtStatus = _FAIL;
 
-	//if(!(Adapter->registrypriv.load_phy_file & LOAD_RF_TXPWR_LMT_PARA_FILE))
-	//	return rtStatus;
-
-	_rtw_memset(pHalData->para_file_buf, 0, MAX_PARA_FILE_BUF_LEN);
+	_rtw_memset(pHalData->para_file_buf , 0 , MAX_PARA_FILE_BUF_LEN);
 
 
 	rtw_merge_string(file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
@@ -3346,14 +3518,11 @@ hal_btcoex_AntIsolationConfig_ParaFile(
 	}
 
 
-	if(rtStatus == _SUCCESS)
-	{
-		//DBG_871X("%s(): read %s ok\n", __FUNCTION__, pFileName);
-		rtStatus = hal_btcoex_ParseAntIsolationConfigFile( Adapter, pHalData->para_file_buf );
-	}
-	else
-	{
-		DBG_871X("%s(): No File %s, Load from *** Array!\n", __FUNCTION__, pFileName);
+	if (rtStatus == _SUCCESS) {
+		/*DBG_871X("%s(): read %s ok\n", __func__ , pFileName);*/
+		rtStatus = hal_btcoex_ParseAntIsolationConfigFile(Adapter , pHalData->para_file_buf);
+	} else {
+		DBG_871X("%s(): No File %s, Load from *** Array!\n" , __func__ , pFileName);
 	}
 
 	return rtStatus;

@@ -44,6 +44,7 @@
 	//#define CONFIG_DEBUG_CFG80211 
 	//#define CONFIG_DRV_ISSUE_PROV_REQ // IOT FOR S2
 	#define CONFIG_SET_SCAN_DENY_TIMER
+	#define CONFIG_IEEE80211_BAND_5GHZ
 #endif
 
 /*
@@ -116,7 +117,6 @@
 		//#endif
 	#endif
 
-	//#define CONFIG_IOL
 //#else 	//#ifndef CONFIG_MP_INCLUDED
 	
 //#endif 	//#ifndef CONFIG_MP_INCLUDED
@@ -137,17 +137,15 @@
 		#define CONFIG_HOSTAPD_MLME	1
 	#endif			
 	#define CONFIG_FIND_BEST_CHANNEL	1
-	//#define CONFIG_NO_WIRELESS_HANDLERS	1
 #endif
 
 #define CONFIG_P2P	1
 #ifdef CONFIG_P2P
 	//The CONFIG_WFD is for supporting the Wi-Fi display
 	#define CONFIG_WFD
-	
-	#ifndef CONFIG_WIFI_TEST
-		#define CONFIG_P2P_REMOVE_GROUP_INFO
-	#endif
+
+	#define CONFIG_P2P_REMOVE_GROUP_INFO
+
 	//#define CONFIG_DBG_P2P
 
 	#define CONFIG_P2P_PS
@@ -158,13 +156,14 @@
 #endif
 
 //	Added by Kurt 20110511
-//#define CONFIG_TDLS	1
 #ifdef CONFIG_TDLS
+	#define CONFIG_TDLS_DRIVER_SETUP
 //	#ifndef CONFIG_WFD
-//		#define CONFIG_WFD	1
+//		#define CONFIG_WFD
 //	#endif
-//	#define CONFIG_TDLS_AUTOSETUP			1
-//	#define CONFIG_TDLS_AUTOCHECKALIVE		1
+//	#define CONFIG_TDLS_AUTOSETUP
+	#define CONFIG_TDLS_AUTOCHECKALIVE
+	#define CONFIG_TDLS_CH_SW		/* Enable "CONFIG_TDLS_CH_SW" by default, however limit it to only work in wifi logo test mode but not in normal mode currently */
 #endif
 
 
@@ -177,13 +176,6 @@
 		//#define CONFIG_LED_HANDLED_BY_CMD_THREAD
 	#endif
 #endif // CONFIG_LED
-
-#ifdef CONFIG_IOL
-	#define CONFIG_IOL_READ_EFUSE_MAP
-	//#define DBG_IOL_READ_EFUSE_MAP
-	#define CONFIG_IOL_LLT
-#endif
-
 
 #define USB_INTERFERENCE_ISSUE // this should be checked in all usb interface
 #define CONFIG_GLOBAL_UI_PID
@@ -215,7 +207,6 @@
 	#define CONFIG_USB_RX_AGGREGATION	1
 #endif
 
-#define CONFIG_PREALLOC_RECV_SKB	1
 //#define CONFIG_REDUCE_USB_TX_INT	1	// Trade-off: Improve performance, but may cause TX URBs blocked by USB Host/Bus driver on few platforms.
 //#define CONFIG_EASY_REPLACEMENT	1
 
@@ -225,16 +216,12 @@
 //#define CONFIG_USE_USB_BUFFER_ALLOC_TX 1	// Trade-off: For TX path, improve stability on some platforms, but may cause performance degrade on other platforms.
 //#define CONFIG_USE_USB_BUFFER_ALLOC_RX 1	// For RX path
 #ifdef CONFIG_USE_USB_BUFFER_ALLOC_RX
-#undef CONFIG_PREALLOC_RECV_SKB
-#else
-	#ifdef CONFIG_PREALLOC_RECV_SKB
-		#define CONFIG_FIX_NR_BULKIN_BUFFER		// only use USB prealloc_recv_buffer, no use alloc_skb()
-	#endif
-#endif
 
-#ifdef CONFIG_WOWLAN
-// 1 spatial stream for lower power mode when entering suspend
-	//#define CONFIG_LOWPR_1SS 
+#else
+	#define CONFIG_PREALLOC_RECV_SKB
+	#ifdef CONFIG_PREALLOC_RECV_SKB
+		//#define CONFIG_FIX_NR_BULKIN_BUFFER /* only use PREALLOC_RECV_SKB buffer, don't alloc skb at runtime */
+	#endif
 #endif
 
 /* 
@@ -249,7 +236,16 @@
 
 //#define CONFIG_USB_SUPPORT_ASYNC_VDN_REQ 1
 
+#ifdef CONFIG_WOWLAN
+	#define CONFIG_GTK_OL
+	#define CONFIG_ARP_KEEP_ALIVE
+#endif // CONFIG_WOWLAN
+
+#ifdef CONFIG_GPIO_WAKEUP
+	#ifndef WAKEUP_GPIO_IDX
 #define WAKEUP_GPIO_IDX	1	//WIFI Chip Side
+	#endif // !WAKEUP_GPIO_IDX
+#endif // CONFIG_GPIO_WAKEUP
 
 /*
  * HAL  Related Config
@@ -311,6 +307,16 @@
 	#endif
 #endif
 
+#ifdef CONFIG_BT_COEXIST
+	// for ODM and outsrc BT-Coex
+	#define BT_30_SUPPORT 1
+	#define CONFIG_BT_COEXIST_SOCKET_TRX
+	#ifndef CONFIG_LPS
+		#define CONFIG_LPS	// download reserved page to FW
+	#endif
+#else // !CONFIG_BT_COEXIST
+	#define BT_30_SUPPORT 0
+#endif // !CONFIG_BT_COEXIST
 
 /*
  * Outsource  Related Config

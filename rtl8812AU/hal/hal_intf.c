@@ -176,8 +176,6 @@ uint	 rtw_hal_init(_adapter *padapter)
 
 	if(status == _SUCCESS){
 
-		rtw_hal_init_opmode(padapter);
-
 		for (i = 0; i<dvobj->iface_nums; i++)
 			dvobj->padapters[i]->hw_init_completed = _TRUE;
 			
@@ -192,6 +190,8 @@ uint	 rtw_hal_init(_adapter *padapter)
 		rtw_led_control(padapter, LED_CTL_POWER_ON);
 
 		init_hw_mlme_ext(padapter);
+
+                rtw_hal_init_opmode(padapter);
 		
 #ifdef CONFIG_RF_GAIN_OFFSET
 		rtw_bb_rf_gain_offset(padapter);
@@ -817,4 +817,10 @@ s32 rtw_hal_fill_h2c_cmd(PADAPTER padapter, u8 ElementID, u32 CmdLen, u8 *pCmdBu
 
 	return ret;
 }
-
+#ifdef CONFIG_GPIO_API
+void rtw_hal_update_hisr_hsisr_ind(_adapter *padapter, u32 flag)
+{
+	if (padapter->HalFunc.update_hisr_hsisr_ind)
+		padapter->HalFunc.update_hisr_hsisr_ind(padapter, flag);
+}
+#endif

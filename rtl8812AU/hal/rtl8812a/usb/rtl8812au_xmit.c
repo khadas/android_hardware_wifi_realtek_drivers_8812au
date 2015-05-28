@@ -181,7 +181,8 @@ static s32 update_txdesc(struct xmit_frame *pxmitframe, u8 *pmem, s32 sz ,u8 bag
 					SET_TX_DESC_DATA_SHORT_8812(ptxdesc, 	1);
 
 				SET_TX_DESC_TX_RATE_8812(ptxdesc, (padapter->fix_rate & 0x7F));
-				SET_TX_DESC_DISABLE_FB_8812(ptxdesc,1);
+				if (!padapter->data_fb)
+					SET_TX_DESC_DISABLE_FB_8812(ptxdesc,1);
 			}
 
 			if (pattrib->ldpc)
@@ -207,6 +208,17 @@ static s32 update_txdesc(struct xmit_frame *pxmitframe, u8 *pmem, s32 sz ,u8 bag
 			SET_TX_DESC_TX_RATE_8812(ptxdesc, MRateToHwRate(pmlmeext->tx_rate));
 		}
 
+#ifdef CONFIG_TDLS
+#ifdef CONFIG_XMIT_ACK
+		/* CCX-TXRPT ack for xmit mgmt frames. */
+		if (pxmitframe->ack_report) {
+			SET_TX_DESC_SPE_RPT_8812(ptxdesc, 1);
+			#ifdef DBG_CCX
+			DBG_871X("%s set tx report\n", __func__);
+			#endif
+		}
+#endif /* CONFIG_XMIT_ACK */
+#endif
 	}
 	else if((pxmitframe->frame_tag&0x0f)== MGNT_FRAMETAG)
 	{

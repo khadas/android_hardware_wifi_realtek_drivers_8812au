@@ -183,8 +183,6 @@ int rtw_os_recvbuf_resource_alloc(_adapter *padapter, struct recv_buf *precvbuf)
 
 	precvbuf->pskb = NULL;
 
-	precvbuf->reuse = _FALSE;
-
 	precvbuf->pallocated_buf  = precvbuf->pbuf = NULL;
 
 	precvbuf->pdata = precvbuf->phead = precvbuf->ptail = precvbuf->pend = NULL;
@@ -319,7 +317,7 @@ void rtw_os_recv_indicate_pkt(_adapter *padapter, _pkt *pkt, struct rx_pkt_attri
 
 			//DBG_871X("bmcast=%d\n", bmcast);
 
-			if(_rtw_memcmp(pattrib->dst, myid(&padapter->eeprompriv), ETH_ALEN)==_FALSE)
+			if (_rtw_memcmp(pattrib->dst, adapter_mac_addr(padapter), ETH_ALEN) == _FALSE)
 			{
 				//DBG_871X("not ap psta=%p, addr=%pM\n", psta, pattrib->dst);
 
@@ -615,6 +613,9 @@ int rtw_recv_indicatepkt(_adapter *padapter, union recv_frame *precv_frame)
 
 	RT_TRACE(_module_recv_osdep_c_,_drv_info_,("\n skb->head=%p skb->data=%p skb->tail=%p skb->end=%p skb->len=%d\n", skb->head, skb->data, skb_tail_pointer(skb), skb_end_pointer(skb), skb->len));
 
+	if (pattrib->eth_type == 0x888e)
+		DBG_871X_LEVEL(_drv_always_, "recv eapol packet\n");
+
 #ifdef CONFIG_AUTO_AP_MODE	
 #if 1 //for testing
 #if 1
@@ -672,7 +673,6 @@ void rtw_os_read_port(_adapter *padapter, struct recv_buf *precvbuf)
 	rtw_skb_free(precvbuf->pskb);
 
 	precvbuf->pskb = NULL;
-	precvbuf->reuse = _FALSE;
 
 	if(precvbuf->irp_pending == _FALSE)
 	{

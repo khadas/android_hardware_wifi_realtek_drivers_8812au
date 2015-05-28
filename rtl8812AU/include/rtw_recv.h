@@ -45,8 +45,12 @@
 			#define NR_RECVBUFF (8)
 		#endif	
 	#endif //CONFIG_SINGLE_RECV_BUF
+	#ifdef CONFIG_PREALLOC_RX_SKB_BUFFER
+		#define NR_PREALLOC_RECV_SKB (rtw_rtkm_get_nr_recv_skb()>>1)
+	#else /*!CONFIG_PREALLOC_RX_SKB_BUFFER */
+		#define NR_PREALLOC_RECV_SKB 8
+	#endif /* CONFIG_PREALLOC_RX_SKB_BUFFER */
 
-	#define NR_PREALLOC_RECV_SKB (8)	
 #endif
 
 #define NR_RECVFRAME 256
@@ -96,6 +100,7 @@ struct recv_reorder_ctrl
 	u16 indicate_seq;//=wstart_b, init_value=0xffff
 	u16 wend_b;
 	u8 wsize_b;
+	u8 ampdu_size;
 	_queue pending_recvframe_queue;
 	_timer reordering_ctrl_timer;
 };
@@ -521,11 +526,9 @@ struct recv_buf
 
 #ifdef PLATFORM_LINUX
 	_pkt	*pskb;
-	u8	reuse;
 #endif
 #ifdef PLATFORM_FREEBSD //skb solution
 	struct sk_buff *pskb;
-	u8	reuse;
 #endif //PLATFORM_FREEBSD //skb solution
 };
 
@@ -627,6 +630,8 @@ sint rtw_enqueue_recvbuf(struct recv_buf *precvbuf, _queue *queue);
 struct recv_buf *rtw_dequeue_recvbuf (_queue *queue);
 
 void rtw_reordering_ctrl_timeout_handler(void *pcontext);
+
+void rx_query_phy_status(union recv_frame *rframe, u8 *phy_stat);
 
 __inline static u8 *get_rxmem(union recv_frame *precvframe)
 {

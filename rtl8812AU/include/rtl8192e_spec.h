@@ -41,7 +41,7 @@
 #define REG_AFE_CTRL2_8192E			0x0028
 #define REG_AFE_CTRL3_8192E			0x002c
 
-
+#define REG_PAD_CTRL1_8192E			0x0064           
 #define REG_SDIO_CTRL_8192E			0x0070
 #define REG_OPT_CTRL_8192E				0x0074
 #define REG_RF_B_CTRL_8192E			0x0076
@@ -175,6 +175,10 @@
 #define REG_WMAC_LBK_BUF_HD_8192E			0x045D
 #define REG_NDPA_OPT_CTRL_8192E		0x045F
 #define REG_DATA_SC_8192E				0x0483
+#ifdef CONFIG_WOWLAN
+#define REG_TXPKTBUF_IV_LOW             0x0484
+#define REG_TXPKTBUF_IV_HIGH            0x0488
+#endif
 #define REG_ARFR2_8192E					0x048C
 #define REG_ARFR3_8192E					0x0494
 #define REG_TXRPT_START_OFFSET			0x04AC

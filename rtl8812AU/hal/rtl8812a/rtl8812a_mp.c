@@ -474,7 +474,7 @@ mpt_SetTxPower_8812(
 				PHY_SetTxPowerIndex_8812A(pAdapter, pTxPower[path], path, MGN_MCS15);
 			}
 		} break;
-		case MPT_VHT_OFDM:
+		case MPT_VHT:
 		{
 			for (path = ODM_RF_PATH_A; path <= ODM_RF_PATH_B; path++)
 			{
@@ -544,7 +544,7 @@ void Hal_SetAntennaPathPower(PADAPTER pAdapter)
 				mpt_SetTxPower_8812(pAdapter,MPT_OFDM,TxPowerLevel);
 			} else if ( (pAdapter->mppriv.rateidx >= MPT_RATE_VHT1SS_MCS0) &&
 		 				(pAdapter->mppriv.rateidx <= MPT_RATE_VHT2SS_MCS9)) { //OFDM
-				mpt_SetTxPower_8812(pAdapter,MPT_VHT_OFDM,TxPowerLevel);
+				mpt_SetTxPower_8812(pAdapter, MPT_VHT, TxPowerLevel);
 			}else{
 				RT_TRACE(_module_mp_,_drv_err_,("\nERROR: incorrect rateidx=%d\n",pAdapter->mppriv.rateidx));
 			}
@@ -570,7 +570,7 @@ void Hal_SetTxPower(PADAPTER pAdapter)
 		DBG_871X("===> MPT_ProSetTxPower: Jaguar\n");
 		mpt_SetTxPower_8812(pAdapter, MPT_CCK, pMptCtx->TxPwrLevel);
 		mpt_SetTxPower_8812(pAdapter, MPT_OFDM, pMptCtx->TxPwrLevel);
-		mpt_SetTxPower_8812(pAdapter, MPT_VHT_OFDM, pMptCtx->TxPwrLevel);
+		mpt_SetTxPower_8812(pAdapter, MPT_VHT, pMptCtx->TxPwrLevel);
 	}
 
 	ODM_ClearTxPowerTrackingState(pDM_Odm);

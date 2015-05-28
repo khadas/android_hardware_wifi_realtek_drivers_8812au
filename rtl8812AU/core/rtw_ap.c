@@ -534,8 +534,8 @@ void	expire_timeout_chk(_adapter *padapter)
 						//add_ba_hdl(padapter, (u8*)paddbareq_parm);
 
 						DBG_871X("issue addba_req to check if sta alive, keep_alive_trycnt=%d\n", psta->keep_alive_trycnt);
-						
-						issue_action_BA(padapter, psta->hwaddr, RTW_WLAN_ACTION_ADDBA_REQ, (u16)priority);		
+
+						issue_addba_req(padapter, psta->hwaddr, (u8)priority);
 		
 						_set_timer(&psta->addba_retry_timer, ADDBA_TO);
 						
@@ -1462,6 +1462,8 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	struct sta_priv *pstapriv = &padapter->stapriv;
 	u8 *ie = pbss_network->IEs;
 	u8 vht_cap=_FALSE;
+	struct mlme_ext_priv	*pmlmeext = &(padapter->mlmeextpriv);
+	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 
 	/* SSID */
 	/* Supported rates */
@@ -1495,7 +1497,7 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 
 	pbss_network->Rssi = 0;
 
-	_rtw_memcpy(pbss_network->MacAddress, myid(&(padapter->eeprompriv)), ETH_ALEN);
+	_rtw_memcpy(pbss_network->MacAddress, adapter_mac_addr(padapter), ETH_ALEN);
 	
 	//beacon interval
 	p = rtw_get_beacon_interval_from_ie(ie);//ie + 8;	// 8: TimeStamp, 2: Beacon Interval 2:Capability
@@ -1783,6 +1785,8 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 
 		rtw_hal_get_def_var(padapter, HW_VAR_MAX_RX_AMPDU_FACTOR, &max_rx_ampdu_factor);
 		pht_cap->ampdu_params_info |= (IEEE80211_HT_CAP_AMPDU_FACTOR & max_rx_ampdu_factor); //set  Max Rx AMPDU size  to 64K
+		
+		_rtw_memcpy(&(pmlmeinfo->HT_caps), pht_cap, sizeof(struct HT_caps_element));
 
 		/* Update Supported MCS Set field */
 		{
@@ -1798,8 +1802,13 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 					set_mcs_rate_by_mask(HT_CAP_ELE_RX_MCS_MAP(pht_cap), MCS_RATE_1R);
 					break;
 				case RF_2T2R:
-				default:
 					set_mcs_rate_by_mask(HT_CAP_ELE_RX_MCS_MAP(pht_cap), MCS_RATE_2R);
+					break;
+				case RF_3T3R:
+					set_mcs_rate_by_mask(HT_CAP_ELE_RX_MCS_MAP(pht_cap), MCS_RATE_3R);
+					break;
+				default:
+					DBG_871X("[warning] rf_type %d is not expected\n", rf_type);
 			}
 			for (i = 0; i < 10; i++)
 				*(HT_CAP_ELE_RX_MCS_MAP(pht_cap)+i) &= padapter->mlmeextpriv.default_supported_mcs_set[i];
@@ -3172,7 +3181,7 @@ void rtw_ap_restore_network(_adapter *padapter)
 			if(	(padapter->securitypriv.dot11PrivacyAlgrthm == _TKIP_) ||
 				(padapter->securitypriv.dot11PrivacyAlgrthm == _AES_))
 			{
-				rtw_setstakey_cmd(padapter, psta, _TRUE,_FALSE);
+				rtw_setstakey_cmd(padapter, psta, UNICAST_KEY,_FALSE);
 			}			
 		}
 	}
@@ -3185,6 +3194,7 @@ void start_ap_mode(_adapter *padapter)
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 	struct sta_priv *pstapriv = &padapter->stapriv;
 	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
+	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 	struct wlan_acl_pool *pacl_list = &pstapriv->acl_list;
 	
 	pmlmepriv->update_bcn = _FALSE;
@@ -3202,10 +3212,12 @@ void start_ap_mode(_adapter *padapter)
 #ifdef CONFIG_80211N_HT
 	pmlmepriv->num_sta_no_ht = 0;
 #endif //CONFIG_80211N_HT
+	pmlmeinfo->HT_info_enable =0;
+	pmlmeinfo->HT_caps_enable=0;
+	pmlmeinfo->HT_enable=0;
+	
 	pmlmepriv->num_sta_ht_20mhz = 0;
-
 	pmlmepriv->olbc = _FALSE;
-
 	pmlmepriv->olbc_ht = _FALSE;
 	
 #ifdef CONFIG_80211N_HT

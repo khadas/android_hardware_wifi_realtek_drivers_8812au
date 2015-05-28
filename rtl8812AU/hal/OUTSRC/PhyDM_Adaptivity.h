@@ -21,9 +21,9 @@
 #ifndef	__PHYDMADAPTIVITY_H__
 #define    __PHYDMADAPTIVITY_H__
 
-#define ADAPTIVITY_VERSION	"7.1"
+#define ADAPTIVITY_VERSION	"8.3"
 
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
 typedef enum _tag_PhyDM_REGULATION_Type {
 	REGULATION_FCC = 0,
 	REGULATION_MKK = 1,
@@ -33,6 +33,7 @@ typedef enum _tag_PhyDM_REGULATION_Type {
 	MAX_REGULATION_NUM = 4
 } PhyDM_REGULATION_TYPE;
 #endif
+
 
 typedef enum tag_PhyDM_TRx_MUX_Type
 {
@@ -68,16 +69,6 @@ VOID
 Phydm_NHMCounterStatistics(
 	IN		PVOID					pDM_VOID
 	);
-
-VOID
-Phydm_NHMBBInit(
-	IN		PVOID					pDM_VOID
-);
-
-VOID
-Phydm_NHMBB(
-	IN		PVOID					pDM_VOID
-);
 
 VOID
 Phydm_NHMCounterStatisticsReset(
@@ -124,7 +115,7 @@ Phydm_AdaptivityInit(
 	IN		PVOID					pDM_VOID
 	);
 
-BOOLEAN
+VOID
 Phydm_Adaptivity(
 	IN		PVOID					pDM_VOID,
 	IN		u1Byte					IGI
@@ -140,6 +131,12 @@ VOID
 Phydm_DynamicEDCCA(
 	IN		PVOID					pDM_VOID
 );
+
+VOID
+Phydm_AdaptivityBSOD(
+	IN		PVOID					pDM_VOID
+);
+
 #endif
 
 

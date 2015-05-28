@@ -107,6 +107,8 @@ typedef struct _COEX_DM_8723B_2ANT{
 	u1Byte		curLps;
 	u1Byte		preRpwm;
 	u1Byte		curRpwm;
+
+	BOOLEAN		bIsSwitchTo1dot5Ant;
 } COEX_DM_8723B_2ANT, *PCOEX_DM_8723B_2ANT;
 
 typedef struct _COEX_STA_8723B_2ANT{	

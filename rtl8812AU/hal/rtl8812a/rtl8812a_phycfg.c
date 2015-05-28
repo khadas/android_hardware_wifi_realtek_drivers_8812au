@@ -125,9 +125,9 @@ phy_RFSerialRead(
 	Offset &= 0xff;
 
 	if (eRFPath == RF_PATH_A)
-       	bIsPIMode = (BOOLEAN)PHY_QueryBBReg(Adapter, 0xC00, 0x4);
+		bIsPIMode = (BOOLEAN)PHY_QueryBBReg(Adapter, 0xC00, 0x4);
 	else if (eRFPath == RF_PATH_B)
-       	bIsPIMode = (BOOLEAN)PHY_QueryBBReg(Adapter, 0xE00, 0x4);
+		bIsPIMode = (BOOLEAN)PHY_QueryBBReg(Adapter, 0xE00, 0x4);
 
 	PHY_SetBBReg(Adapter, pPhyReg->rfHSSIPara2, bHSSIRead_addr_Jaguar, Offset);
 
@@ -1730,17 +1730,20 @@ VOID phy_InitRssiTRSW(
 	}
 }
 
-// <20130806, Kordan> Referenced from "WB-20130801-YN-RL6286 Settings for Spur Issues.xls".
+/*Referenced from "WB-20130801-YN-RL6286 Settings for Spur Issues R02.xls"*/
 VOID
 phy_SpurCalibration_8812A(	
 	IN	PADAPTER	pAdapter,
-	IN	u8			Channel
+	IN	u8			Channel,
+	IN	u8			Bandwidth
 	)
 {
 	//RT_TRACE(COMP_SCAN, DBG_LOUD, ("===>phy_SpurCalibration_8812A()\n"));
 	
 	//2 1. Reset
-	PHY_SetBBReg(pAdapter, 0x878, BIT8|BIT7|BIT6, 0x3);
+	PHY_SetBBReg(pAdapter, 0x874, BIT0, 0);
+	PHY_SetBBReg(pAdapter, 0x874, BIT21 , 0);
+	PHY_SetBBReg(pAdapter, 0x878, BIT8|BIT7|BIT6, 0);
 	PHY_SetBBReg(pAdapter, 0x878, BIT0, 0);
 	PHY_SetBBReg(pAdapter, 0x87C, BIT13, 0);
 	PHY_SetBBReg(pAdapter, 0x880, bMaskDWord, 0);
@@ -1750,64 +1753,29 @@ phy_SpurCalibration_8812A(
 
 	
 	//2 2. Register Setting 1 (False Alarm)
-	switch (Channel)
-	{
-		case 149:
-		case 153:
-		case 151:
-		case 155:
-        {
-		    PHY_SetBBReg(pAdapter, 0x878, BIT8|BIT7|BIT6, 0x4);
-		    PHY_SetBBReg(pAdapter, 0x878, BIT0, 1);
-		    PHY_SetBBReg(pAdapter, 0x87C, BIT13, 1);
-		    break;
-        }
-		default:
-			break;
+	if (((Channel == 149 || Channel == 153) && Bandwidth == CHANNEL_WIDTH_20) ||
+		(Channel == 151 && Bandwidth == CHANNEL_WIDTH_40) ||
+			(Channel == 155 && Bandwidth == CHANNEL_WIDTH_80)) {
+
+		PHY_SetBBReg(pAdapter, 0x878, BIT6, 0);
+		PHY_SetBBReg(pAdapter, 0x878, BIT7, 0);
+		PHY_SetBBReg(pAdapter, 0x878, BIT8, 1);
+		PHY_SetBBReg(pAdapter, 0x878, BIT0, 1);
+		PHY_SetBBReg(pAdapter, 0x87C, BIT13, 1);
 	}
 	
 	//2 3. Register Setting 2 (SINR)
 	PHY_SetBBReg(pAdapter, 0x874, BIT21, 1);
 	PHY_SetBBReg(pAdapter, 0x874, BIT0 , 1);
 	
-	switch (Channel)
-	{
-		case 149:
-			PHY_SetBBReg(pAdapter, 0x884, bMaskDWord, 0x00010000);
-			break;
-		case 153:
-			PHY_SetBBReg(pAdapter, 0x89C, bMaskDWord, 0x00010000);
-			break;
-		case 165:
-			PHY_SetBBReg(pAdapter, 0x884, bMaskDWord, 0x00010000);
-			break;
-		case 169:
-			PHY_SetBBReg(pAdapter, 0x89C, bMaskDWord, 0x00010000);
-			break;
-		case 38:
-		case 54:
-		case 102:
-		case 118:
-		case 134:
-			//PHY_SetBBReg(pAdapter, 0x884, bMaskDWord, 0x00000001);
-			break;
-		case 151:
-		case 167:
-			PHY_SetBBReg(pAdapter, 0x880, bMaskDWord, 0x00010000);
-			break;
-		case 42:
-		case 58:
-		case 106:
-		case 122:
-		case 138:
-			PHY_SetBBReg(pAdapter, 0x89C, bMaskDWord, 0x00000001);
-			break;
-		case 155:
-			PHY_SetBBReg(pAdapter, 0x898, bMaskDWord, 0x00010000);
-			break;
-		default:
-		    break;
-	}
+	if (Channel == 149 && Bandwidth == CHANNEL_WIDTH_20) 
+		PHY_SetBBReg(pAdapter, 0x884, bMaskDWord, 0x00010000);
+	else if (Channel == 153 && Bandwidth == CHANNEL_WIDTH_20)
+		PHY_SetBBReg(pAdapter, 0x89C, bMaskDWord, 0x00010000);
+	else if (Channel == 151 && Bandwidth == CHANNEL_WIDTH_40)
+		PHY_SetBBReg(pAdapter, 0x880, bMaskDWord, 0x00010000);
+	else if (Channel == 155 && Bandwidth == CHANNEL_WIDTH_80)
+		PHY_SetBBReg(pAdapter, 0x898, bMaskDWord, 0x00010000);
 	//RT_TRACE(COMP_SCAN, DBG_LOUD, ("<===phy_SpurCalibration_8812A()\n"));
 
 }
@@ -1820,6 +1788,7 @@ phy_SwChnl8812(
 	u8	eRFPath = 0;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 	u8	channelToSW = pHalData->CurrentChannel;
+	u8	bandwidthToSw = pHalData->CurrentChannelBW;
 
 	if(phy_SwBand8812(pAdapter, channelToSW) == _FALSE)
 	{
@@ -1902,8 +1871,10 @@ phy_SwChnl8812(
 		}
 	}
 
-	if (IS_HARDWARE_TYPE_8812(pAdapter) && (pHalData->RFEType == 4 || pHalData->ExternalPA_5G == 0)) 
-		phy_SpurCalibration_8812A(pAdapter, channelToSW);
+	/*only for 8812A mp mode*/
+	if (IS_HARDWARE_TYPE_8812(pAdapter) && (pHalData->LNAType_5G == 0x00) 
+		&& pAdapter->registrypriv.mp_mode == _TRUE) 
+		phy_SpurCalibration_8812A(pAdapter, channelToSW, bandwidthToSw);
 }
 
 VOID

@@ -1136,7 +1136,7 @@ phy_IQCalibrate_8812A(
 	IN u1Byte		Channel
 	)
 {
-	u4Byte	MACBB_backup[MACBB_REG_NUM], AFE_backup[AFE_REG_NUM], RFA_backup[RF_REG_NUM], RFB_backup[RF_REG_NUM];
+	u4Byte	MACBB_backup[MACBB_REG_NUM], AFE_backup[AFE_REG_NUM] = {0}, RFA_backup[RF_REG_NUM] = {0}, RFB_backup[RF_REG_NUM] = {0};
 	u4Byte 	Backup_MACBB_REG[MACBB_REG_NUM] = {0x520, 0x550, 0x808, 0xa04, 0x90c, 0xc00, 0xe00, 0x838,  0x82c}; 
 	u4Byte 	Backup_AFE_REG[AFE_REG_NUM] = {0xc5c, 0xc60, 0xc64, 0xc68, 0xcb0, 0xcb4,
 		       	                                                   0xe5c, 0xe60, 0xe64, 0xe68, 0xeb0, 0xeb4}; 
@@ -1212,11 +1212,13 @@ phy_LCCalibrate_8812A(
 	//3 4. Set LC calibration begin bit15
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bRFRegOffsetMask, LC_Cal|0x08000);
 
+	ODM_delay_ms(150);		// suggest by RFSI Binson
+	
 	// Leave LCK mode
 	tmp = ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_LCK, bRFRegOffsetMask);
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_LCK, bRFRegOffsetMask, tmp & ~BIT14);
 	
-	ODM_delay_ms(100);		
+	
 
 	//3 Restore original situation
 	if((reg0x914 & 70000) != 0) 	//Deal with contisuous TX case, 0x914[18:16]

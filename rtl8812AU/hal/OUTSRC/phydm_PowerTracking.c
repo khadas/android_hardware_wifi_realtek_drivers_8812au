@@ -18,9 +18,9 @@
  *
  ******************************************************************************/
 
-//============================================================
-// include files
-//============================================================
+/*============================================================	*/
+/* include files												*/
+/*============================================================	*/
 #include "Mp_Precomp.h"
 #include "phydm_precomp.h"
 
@@ -350,7 +350,7 @@ unsigned int TxPwrTrk_OFDM_SwingTbl[TxPwrTrk_OFDM_SwingTbl_Len] = {
 
 VOID
 odm_TXPowerTrackingInit(
-	IN 	PVOID	 	pDM_VOID 
+	IN	PVOID	pDM_VOID 
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -364,7 +364,7 @@ odm_TXPowerTrackingInit(
 
 u1Byte 
 getSwingIndex(
-	IN 	PVOID	 	pDM_VOID 
+	IN	PVOID	pDM_VOID 
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -412,7 +412,7 @@ getSwingIndex(
 
 VOID
 odm_TXPowerTrackingThermalMeterInit(
-	IN 	PVOID	 	pDM_VOID 
+	IN	PVOID	pDM_VOID
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -506,14 +506,12 @@ odm_TXPowerTrackingThermalMeterInit(
 
 VOID
 ODM_TXPowerTrackingCheck(
-	IN 	PVOID	 	pDM_VOID
+	IN	PVOID	pDM_VOID
 	)
 {
-	//
-	// 2011/09/29 MH In HW integration first stage, we provide 4 different handle to operate
-	// at the same time. In the stage2/3, we need to prive universal interface and merge all
-	// HW dynamic mechanism.
-	//
+	/* 2011/09/29 MH In HW integration first stage, we provide 4 different handle to operate
+	at the same time. In the stage2/3, we need to prive universal interface and merge all
+	HW dynamic mechanism. */
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	switch	(pDM_Odm->SupportPlatform)
 	{
@@ -538,7 +536,7 @@ ODM_TXPowerTrackingCheck(
 
 VOID
 odm_TXPowerTrackingCheckCE(
-	IN 	PVOID	 	pDM_VOID
+	IN	PVOID	pDM_VOID
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -561,16 +559,14 @@ odm_TXPowerTrackingCheckCE(
 	}
 	#endif
 
-	#if(((RTL8188E_SUPPORT==1) ||  (RTL8812A_SUPPORT==1) ||  (RTL8821A_SUPPORT==1) ||  (RTL8192E_SUPPORT==1)  ||  (RTL8723B_SUPPORT==1)  ))
-	if(!(pDM_Odm->SupportAbility & ODM_RF_TX_PWR_TRACK))
-	{
+	#if (((RTL8188E_SUPPORT == 1) ||  (RTL8812A_SUPPORT == 1) ||  (RTL8821A_SUPPORT == 1) ||  (RTL8192E_SUPPORT == 1)  ||  (RTL8723B_SUPPORT == 1)  ||  (RTL8814A_SUPPORT == 1)))
+	if (!(pDM_Odm->SupportAbility & ODM_RF_TX_PWR_TRACK))
 		return;
-	}
 
 	if(!pDM_Odm->RFCalibrateInfo.TM_Trigger)		//at least delay 1 sec
 	{
 		//pHalData->TxPowerCheckCnt++;	//cosa add for debug
-		if(IS_HARDWARE_TYPE_8188E(Adapter) || IS_HARDWARE_TYPE_JAGUAR(Adapter) || IS_HARDWARE_TYPE_8192E(Adapter)||IS_HARDWARE_TYPE_8723B(Adapter))
+		if (IS_HARDWARE_TYPE_8188E(Adapter) || IS_HARDWARE_TYPE_JAGUAR(Adapter) || IS_HARDWARE_TYPE_8192E(Adapter) || IS_HARDWARE_TYPE_8723B(Adapter) || IS_HARDWARE_TYPE_8814A(Adapter))
 			ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_T_METER_NEW, (BIT17 | BIT16), 0x03);
 		else
 			ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_T_METER_OLD, bRFRegOffsetMask, 0x60);
@@ -592,7 +588,7 @@ odm_TXPowerTrackingCheckCE(
 
 VOID
 odm_TXPowerTrackingCheckMP(
-	IN 	PVOID	 	pDM_VOID
+	IN	PVOID	pDM_VOID
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -620,7 +616,7 @@ odm_TXPowerTrackingCheckMP(
 
 VOID
 odm_TXPowerTrackingCheckAP(
-	IN 	PVOID	 	pDM_VOID
+	IN	PVOID	pDM_VOID
 	)
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;

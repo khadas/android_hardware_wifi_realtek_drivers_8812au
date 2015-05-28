@@ -249,8 +249,8 @@ odm_DynamicTxPowerAP(
 	if(!priv->pshare->rf_ft_var.tx_pwr_ctrl)
 		return;
 	
-#if ((RTL8812E_SUPPORT==1) || (RTL8881A_SUPPORT==1))
-	if (pDM_Odm->SupportICType & (ODM_RTL8812 | ODM_RTL8881A))
+#if ((RTL8812E_SUPPORT==1) || (RTL8881A_SUPPORT==1) || (RTL8814A_SUPPORT==1))
+	if (pDM_Odm->SupportICType & (ODM_RTL8812 | ODM_RTL8881A | ODM_RTL8814A))
 		pwr_thd = TX_POWER_NEAR_FIELD_THRESH_8812;
 #endif
 

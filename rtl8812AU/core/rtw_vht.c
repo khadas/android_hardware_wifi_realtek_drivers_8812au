@@ -596,7 +596,7 @@ u32	rtw_build_vht_cap_ie(_adapter *padapter, u8 *pbuf)
 	{
 		rtw_hal_get_hwreg(padapter, HW_VAR_RF_TYPE, (u8 *)(&rf_type));
 		if ((rf_type == RF_2T2R) || (rf_type == RF_1T2R)) {
-			SET_VHT_CAPABILITY_ELE_RX_STBC(pcap, 2);
+			SET_VHT_CAPABILITY_ELE_RX_STBC(pcap, 1);
 		}
 		else if (rf_type == RF_1T1R) {
 			SET_VHT_CAPABILITY_ELE_RX_STBC(pcap, 1);

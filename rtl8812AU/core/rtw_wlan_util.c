@@ -3253,12 +3253,11 @@ void process_addba_req(_adapter *padapter, u8 *paddba_req, u8 *addr)
 {
 	struct sta_info *psta;
 	u16 tid, start_seq, param;	
-	struct recv_reorder_ctrl *preorder_ctrl;
 	struct sta_priv *pstapriv = &padapter->stapriv;	
 	struct ADDBA_request	*preq = (struct ADDBA_request*)paddba_req;
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
-	u8 size;
+	u8 size, accept = _FALSE;
 
 	psta = rtw_get_stainfo(pstapriv, addr);
 	if (!psta)
@@ -3269,27 +3268,14 @@ void process_addba_req(_adapter *padapter, u8 *paddba_req, u8 *addr)
 	param = le16_to_cpu(preq->BA_para_set);
 	tid = (param>>2)&0x0f;
 
-	preorder_ctrl = &psta->recvreorder_ctrl[tid];
 
-	#ifdef CONFIG_UPDATE_INDICATE_SEQ_WHILE_PROCESS_ADDBA_REQ
-	preorder_ctrl->indicate_seq = start_seq;
-	#ifdef DBG_RX_SEQ
-	DBG_871X("DBG_RX_SEQ %s:%d IndicateSeq: %d, start_seq: %d\n", __func__, __LINE__,
-		preorder_ctrl->indicate_seq, start_seq);
-	#endif
-	#else
-	preorder_ctrl->indicate_seq = 0xffff;
-	#endif
-
-	preorder_ctrl->enable = rtw_rx_ampdu_is_accept(padapter);
+	accept = rtw_rx_ampdu_is_accept(padapter);
 	size = rtw_rx_ampdu_size(padapter);
 
-	if (preorder_ctrl->enable == _TRUE) {
-		preorder_ctrl->ampdu_size = size;
-		issue_addba_rsp(padapter, addr, tid, 0, size);
-	} else {
-		issue_addba_rsp(padapter, addr, tid, 37, size); /* reject ADDBA Req */
-	}
+	if (accept == _TRUE)
+		rtw_addbarsp_cmd(padapter, addr, tid, 0, size, start_seq);
+	else
+		rtw_addbarsp_cmd(padapter, addr, tid, 37, size, start_seq); /* reject ADDBA Req */
 
 exit:
 	return;

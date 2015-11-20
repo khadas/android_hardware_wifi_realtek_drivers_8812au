@@ -4004,8 +4004,8 @@ unsigned int rtw_restructure_ht_ie(_adapter *padapter, u8 *in_ie, u8 *out_ie, ui
 	case RF_2T2R:
 	case RF_1T2R:
 		if (stbc_rx_enable) {
-			ht_capie.cap_info |= IEEE80211_HT_CAP_RX_STBC_2R;//RX STBC two spatial stream
-			DBG_871X("[HT] Declare supporting RX STBC_2R\n");
+			ht_capie.cap_info |= IEEE80211_HT_CAP_RX_STBC_1R;/* RX STBC one spatial stream */
+			DBG_871X("[HT] Declare supporting RX STBC_1R\n");
 		}
 
 		#ifdef CONFIG_DISABLE_MCS13TO15

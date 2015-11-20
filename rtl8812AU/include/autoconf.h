@@ -36,10 +36,10 @@
 #define PLATFORM_LINUX	1
 
 
-#define CONFIG_IOCTL_CFG80211 1
+//#define CONFIG_IOCTL_CFG80211 1
 
 #ifdef CONFIG_IOCTL_CFG80211
-	#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
+	//#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
 	#define CONFIG_CFG80211_FORCE_COMPATIBLE_2_6_37_UNDER
 	//#define CONFIG_DEBUG_CFG80211 
 	//#define CONFIG_DRV_ISSUE_PROV_REQ // IOT FOR S2
@@ -106,7 +106,7 @@
 	#endif
 
 
-	#define CONFIG_CONCURRENT_MODE 1
+	//#define CONFIG_CONCURRENT_MODE 1
 	#ifdef CONFIG_CONCURRENT_MODE
 		//#define CONFIG_HWPORT_SWAP				//Port0->Sec , Port1 -> Pri
 		#define CONFIG_RUNTIME_PORT_SWITCH
@@ -149,7 +149,7 @@
 	//#define CONFIG_DBG_P2P
 
 	#define CONFIG_P2P_PS
-	#define CONFIG_P2P_IPS
+	//#define CONFIG_P2P_IPS
 	#define CONFIG_P2P_OP_CHK_SOCIAL_CH
 	#define CONFIG_CFG80211_ONECHANNEL_UNDER_CONCURRENT  //replace CONFIG_P2P_CHK_INVITE_CH_LIST flag
 	#define CONFIG_P2P_INVITE_IOT
@@ -370,9 +370,9 @@
 /*
  * Debug Related Config
  */
-#define DBG	0
+#define DBG	1
 
-//#define CONFIG_DEBUG /* DBG_871X, etc... */
+#define CONFIG_DEBUG /* DBG_871X, etc... */
 //#define CONFIG_DEBUG_RTL871X /* RT_TRACE, RT_PRINT_DATA, _func_enter_, _func_exit_ */
 
 #define CONFIG_PROC_DEBUG

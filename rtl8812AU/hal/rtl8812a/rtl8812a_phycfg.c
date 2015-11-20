@@ -109,7 +109,7 @@ phy_RFSerialRead(
 	BB_REGISTER_DEFINITION_T	*pPhyReg = &pHalData->PHYRegDef[eRFPath];
 	BOOLEAN						bIsPIMode = _FALSE;
 
-
+	_enter_critical_mutex(&(adapter_to_dvobj(Adapter)->rf_read_reg_mutex) , NULL);
 	// 2009/06/17 MH We can not execute IO for power save or other accident mode.
 	//if(RT_CANNOT_IO(Adapter))
 	//{
@@ -150,6 +150,7 @@ phy_RFSerialRead(
 	if (Offset != 0x0 &&  ! (IS_VENDOR_8812A_C_CUT(Adapter) || IS_HARDWARE_TYPE_8821(Adapter)))
 		PHY_SetBBReg(Adapter, rCCAonSec_Jaguar, 0x8, 0);
 
+	_exit_critical_mutex(&(adapter_to_dvobj(Adapter)->rf_read_reg_mutex), NULL);
 	return retValue;
 }
 
@@ -735,60 +736,34 @@ PHY_GetTxPowerIndex_8812A(
 
 	limit = PHY_GetTxPowerLimit( pAdapter, pAdapter->registrypriv.RegPwrTblSel, (u8)(!bIn24G), pHalData->CurrentChannelBW, RFPath, Rate, pHalData->CurrentChannel);
 
-	powerDiffByRate = powerDiffByRate > limit ? limit : powerDiffByRate;
-	//DBG_871X("Rate-0x%x: (TxPower, PowerDiffByRate Path-%c) = (0x%X, %d)\n", Rate, ((RFPath==0)?'A':'B'), txPower, powerDiffByRate);
-
-	// We need to reduce power index for VHT MCS 8 & 9.
-	if (Rate == MGN_VHT1SS_MCS8 || Rate == MGN_VHT1SS_MCS9 ||
-		Rate == MGN_VHT2SS_MCS8 || Rate == MGN_VHT2SS_MCS9)
-	{
-		txPower += powerDiffByRate;
-	}
-	else
-	{
 #ifdef CONFIG_USB_HCI
-		//
-		// 2013/01/29 MH For preventing VHT rate of 8812AU to be used in USB 2.0 mode
-		// and the current will be more than 500mA and card disappear. We need to limit 
-		// TX power with any power by rate for VHT in U2.
-		// 2013/01/30 MH According to power current test compare with BCM AC NIC, we
-		// decide to use host hub = 2.0 mode to enable tx power limit behavior.
-		//
-		if (adapter_to_dvobj(pAdapter)->usb_speed == RTW_USB_SPEED_2 && IS_HARDWARE_TYPE_8812AU(pAdapter))
-		{
-			powerDiffByRate = 0;
-		}
-#endif
-		txPower += powerDiffByRate;
-#if 0
-		//
-		// 2013/02/06 MH Add for ASUS requiremen for adjusting TX power limit.
-		// This is a temporarily dirty fix for asus , neeed to revise later!
-		// 2013/03/07 MH Asus add more request.
-		// 2013/03/14 MH Asus add one more request for the power control.
-		//
-		if (Channel >= 36)
-		{			
-			txPower += pMgntInfo->RegTPCLvl5g;
+	/*
+	  * 2013/01/29 MH For preventing VHT rate of 8812AU to be used in USB 2.0 mode
+	  * and the current will be more than 500mA and card disappear. We need to limit 
+	  * TX power with any power by rate for VHT in U2.
+	  * 2013/01/30 MH According to power current test compare with BCM AC NIC, we
+	  * decide to use host hub = 2.0 mode to enable tx power limit behavior.
+	  */
+	if (adapter_to_dvobj(pAdapter)->usb_speed == RTW_USB_SPEED_2 
+		&& IS_HARDWARE_TYPE_8812AU(pAdapter)) {
 
-			if (txPower > pMgntInfo->RegTPCLvl5gD)
-				txPower -= pMgntInfo->RegTPCLvl5gD;
-		}
-		else
-		{		
-			txPower += pMgntInfo->RegTPCLvl;
-
-			if (txPower > pMgntInfo->RegTPCLvlD)
-				txPower -= pMgntInfo->RegTPCLvlD;
-		}
+		/* VHT rate 0~7, disable TxPowerByRate, but enable TX power limit */
+		if ((Rate >= MGN_VHT1SS_MCS0 && Rate <= MGN_VHT1SS_MCS7) || 
+				(Rate >= MGN_VHT2SS_MCS0 && Rate <= MGN_VHT2SS_MCS7))
+				powerDiffByRate = 0;
+	}
 #endif
-	}	
+
+	powerDiffByRate = powerDiffByRate > limit ? limit : powerDiffByRate;
+	/* DBG_871X("Rate-0x%x: (TxPower, PowerDiffByRate Path-%c) = (0x%X, %d)\n", Rate, ((RFPath==0)?'A':'B'), txPower, powerDiffByRate); */
 	
+	txPower += powerDiffByRate;
 	txPower += PHY_GetTxPowerTrackingOffset( pAdapter, RFPath, Rate );
 	
-	// 2012/09/26 MH We need to take care high power device limiation to prevent destroy EXT_PA.
-	// This case had ever happened in CU/SU high power module. THe limitation = 0x20.
-	// But for 8812, we still not know the value.
+	/* 2012/09/26 MH We need to take care high power device limiation to prevent destroy EXT_PA.
+	  * This case had ever happened in CU/SU high power module. THe limitation = 0x20.
+	  * But for 8812, we still not know the value.
+	  */
 	phy_TxPwrAdjInPercentage(pAdapter, (u8 *)&txPower);
 
 	if(txPower > MAX_POWER_INDEX)
@@ -797,7 +772,7 @@ PHY_GetTxPowerIndex_8812A(
 	if ( txPower % 2 == 1 && !IS_NORMAL_CHIP(pHalData->VersionID))
 		--txPower;
 
-	//DBG_871X("Final Tx Power(RF-%c, Channel: %d) = %d(0x%X)\n", ((RFPath==0)?'A':'B'), Channel,txPower, txPower);
+	/* DBG_871X("Final Tx Power(RF-%c, Channel: %d) = %d(0x%X)\n", ((RFPath==0)?'A':'B'), Channel,txPower, txPower); */
 
 	return (u8) txPower;
 }

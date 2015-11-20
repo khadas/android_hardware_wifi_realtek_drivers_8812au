@@ -6199,8 +6199,8 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 }
 #endif //CONFIG_RF_GAIN_OFFSET
 
-#ifdef CONFIG_USB_RX_AGGREGATION	
-void rtw_set_usb_agg_by_mode(_adapter *padapter, u8 cur_wireless_mode)
+#ifdef CONFIG_USB_RX_AGGREGATION
+void rtw_set_usb_agg_by_mode_normal(_adapter *padapter, u8 cur_wireless_mode)
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	if(cur_wireless_mode < WIRELESS_11_24N 
@@ -6274,6 +6274,43 @@ void rtw_set_usb_agg_by_mode(_adapter *padapter, u8 cur_wireless_mode)
 		/* DBG_871X("%s: Unknow wireless mode(0x%x)\n",__func__,padapter->mlmeextpriv.cur_wireless_mode); */
 	}
 }
+
+void rtw_set_usb_agg_by_mode_customer(_adapter *padapter, u8 cur_wireless_mode, u8 UsbDmaSize, u8 Legacy_UsbDmaSize)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	if (cur_wireless_mode < WIRELESS_11_24N
+		&& cur_wireless_mode > 0) { /* ABG mode */
+		if (Legacy_UsbDmaSize != pHalData->RegAcUsbDmaSize
+			|| 0x10 != pHalData->RegAcUsbDmaTime) {
+			pHalData->RegAcUsbDmaSize = Legacy_UsbDmaSize;
+			pHalData->RegAcUsbDmaTime = 0x10;
+			rtw_write16(padapter, REG_RXDMA_AGG_PG_TH,
+				pHalData->RegAcUsbDmaSize | (pHalData->RegAcUsbDmaTime<<8));
+		}
+	} else if (cur_wireless_mode >= WIRELESS_11_24N
+				&& cur_wireless_mode <= WIRELESS_MODE_MAX) { /* N AC mode */
+		if (UsbDmaSize != pHalData->RegAcUsbDmaSize
+			|| 0x20 != pHalData->RegAcUsbDmaTime) {
+			pHalData->RegAcUsbDmaSize = UsbDmaSize;
+			pHalData->RegAcUsbDmaTime = 0x20;
+			rtw_write16(padapter, REG_RXDMA_AGG_PG_TH,
+				pHalData->RegAcUsbDmaSize | (pHalData->RegAcUsbDmaTime<<8));
+		}
+	} else {
+		/* DBG_871X("%s: Unknown wireless mode(0x%x)\n",__func__,padapter->mlmeextpriv.cur_wireless_mode); */
+	}
+}
+
+void rtw_set_usb_agg_by_mode(_adapter *padapter, u8 cur_wireless_mode)
+{
+#ifdef CONFIG_PLATFORM_NOVATEK_NT72668
+	rtw_set_usb_agg_by_mode_customer(padapter, cur_wireless_mode, 0x3, 0x3);
+	return;
+#endif /* CONFIG_PLATFORM_NOVATEK_NT72668 */
+
+	rtw_set_usb_agg_by_mode_normal(padapter, cur_wireless_mode);
+}
 #endif //CONFIG_USB_RX_AGGREGATION
 
 //To avoid RX affect TX throughput
@@ -6321,6 +6358,10 @@ void dm_DynamicUsbTxAgg(_adapter *padapter, u8 from_timer)
 #else //!CONFIG_CONCURRENT_MODE
 		rtw_set_usb_agg_by_mode(padapter,cur_wireless_mode);
 #endif //CONFIG_CONCURRENT_MODE
+#ifdef CONFIG_PLATFORM_NOVATEK_NT72668
+	} else {
+		rtw_set_usb_agg_by_mode(padapter, cur_wireless_mode);
+#endif /* CONFIG_PLATFORM_NOVATEK_NT72668 */
 	}
 #endif
 }

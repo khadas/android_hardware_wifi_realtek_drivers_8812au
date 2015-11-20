@@ -1146,6 +1146,7 @@ struct dvobj_priv *devobj_init(void)
 	_rtw_mutex_init(&pdvobj->h2c_fwcmd_mutex);
 	_rtw_mutex_init(&pdvobj->setch_mutex);
 	_rtw_mutex_init(&pdvobj->setbw_mutex);
+	_rtw_mutex_init(&pdvobj->rf_read_reg_mutex);
 
 	pdvobj->processing_dev_remove = _FALSE;
 
@@ -1167,6 +1168,7 @@ void devobj_deinit(struct dvobj_priv *pdvobj)
 	_rtw_mutex_free(&pdvobj->h2c_fwcmd_mutex);
 	_rtw_mutex_free(&pdvobj->setch_mutex);
 	_rtw_mutex_free(&pdvobj->setbw_mutex);
+	_rtw_mutex_free(&pdvobj->rf_read_reg_mutex);
 
 	rtw_macid_ctl_deinit(&pdvobj->macid_ctl);
 	_rtw_spinlock_free(&pdvobj->cam_ctl.lock);
@@ -1759,7 +1761,6 @@ void rtw_drv_stop_vir_if(_adapter *padapter)
 
 	pnetdev = padapter->pnetdev;
 
-	rtw_cancel_all_timer(padapter);
 
 	if (padapter->bup == _TRUE)
 	{
@@ -1779,6 +1780,9 @@ void rtw_drv_stop_vir_if(_adapter *padapter)
 
 		padapter->bup = _FALSE;
 	}
+
+	/* cancel timer after thread stop */
+	rtw_cancel_all_timer(padapter);
 }
 
 void rtw_drv_free_vir_if(_adapter *padapter)
@@ -2141,7 +2145,6 @@ void rtw_drv_if2_stop(_adapter *if2)
 	if (padapter == NULL)
 		return;
 
-	rtw_cancel_all_timer(padapter);
 
 	if (padapter->bup == _TRUE) {
 		padapter->bDriverStopped = _TRUE;
@@ -2159,6 +2162,9 @@ void rtw_drv_if2_stop(_adapter *if2)
 
 		padapter->bup = _FALSE;
 	}
+
+	/* cancel timer after thread stop */
+	rtw_cancel_all_timer(padapter);
 }
 #endif //end of CONFIG_CONCURRENT_MODE
 
@@ -3050,7 +3056,9 @@ void rtw_dev_unload(PADAPTER padapter)
 		RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("%s: bup==_FALSE\n",__FUNCTION__));
 		DBG_871X("%s: bup==_FALSE\n",__FUNCTION__);
 	}
-	
+
+	/* cancel timer after thread stop */
+	rtw_cancel_all_timer(padapter);
 	RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("-%s\n",__FUNCTION__));
 }
 

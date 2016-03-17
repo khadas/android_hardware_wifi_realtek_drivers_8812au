@@ -706,6 +706,9 @@ post_process:
 
 	}
 
+	/* to avoid enqueue cmd after free all cmd_obj  */
+	ATOMIC_SET(&(pcmdpriv->cmdthd_running), _FALSE);
+
 	// free all cmd_obj resources
 	do{
 		pcmd = rtw_dequeue_cmd(pcmdpriv);
@@ -728,7 +731,6 @@ post_process:
 	}while(1);
 
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
-	ATOMIC_SET(&(pcmdpriv->cmdthd_running), _FALSE);
 
 _func_exit_;
 
@@ -1077,6 +1079,43 @@ _func_enter_;
 exit:	
 _func_exit_;		
 	return res;
+}
+
+u8 rtw_getmacreg_cmd(_adapter*padapter, u8 len, u32 addr)
+{	
+	struct cmd_obj*			ph2c;
+	struct readMAC_parm*		preadmacparm;
+	struct cmd_priv 			*pcmdpriv=&padapter->cmdpriv;	
+	u8	res=_SUCCESS;
+_func_enter_;
+	ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));
+	if(ph2c==NULL){
+		res= _FAIL;
+		goto exit;
+		}
+	preadmacparm = (struct readMAC_parm*)rtw_zmalloc(sizeof(struct readMAC_parm)); 
+
+	if(preadmacparm==NULL){
+		rtw_mfree((u8 *) ph2c, sizeof(struct	cmd_obj));
+		res= _FAIL;
+		goto exit;
+	}
+
+	init_h2fwcmd_w_parm_no_rsp(ph2c, preadmacparm, GEN_CMD_CODE(_GetMACReg));	
+
+	preadmacparm->len = len;
+	preadmacparm->addr = addr;
+
+	res = rtw_enqueue_cmd(pcmdpriv, ph2c);	
+exit:	
+_func_exit_;	
+	return res;
+}
+
+void rtw_usb_catc_trigger_cmd(_adapter*padapter, const char *caller)
+{
+	DBG_871X("%s caller:%s\n",__func__, caller);
+	rtw_getmacreg_cmd(padapter, 1, 0x1c4);
 }
 
 u8 rtw_setbbreg_cmd(_adapter*padapter, u8 offset, u8 val)
@@ -1962,6 +2001,46 @@ _func_enter_;
 	
 exit:
 	
+_func_exit_;
+
+	return res;
+}
+
+u8 rtw_addbarsp_cmd(_adapter *padapter, u8 *addr, u16 tid, u8 status, u8 size, u16 start_seq)
+{
+	struct cmd_priv *pcmdpriv = &padapter->cmdpriv;
+	struct cmd_obj *ph2c;
+	struct addBaRsp_parm *paddBaRsp_parm;
+	u8 res = _SUCCESS;
+
+_func_enter_;
+
+	ph2c = (struct cmd_obj *)rtw_zmalloc(sizeof(struct cmd_obj));
+	if (ph2c == NULL) {
+		res = _FAIL;
+		goto exit;
+	}
+
+	paddBaRsp_parm = (struct addBaRsp_parm *)rtw_zmalloc(sizeof(struct addBaRsp_parm));
+
+	if (paddBaRsp_parm == NULL) {
+		rtw_mfree((unsigned char *)ph2c, sizeof(struct cmd_obj));
+		res = _FAIL;
+		goto exit;
+	}
+
+	_rtw_memcpy(paddBaRsp_parm->addr, addr, ETH_ALEN);
+	paddBaRsp_parm->tid = tid;
+	paddBaRsp_parm->status = status;
+	paddBaRsp_parm->size = size;
+	paddBaRsp_parm->start_seq = start_seq;
+
+	init_h2fwcmd_w_parm_no_rsp(ph2c, paddBaRsp_parm, GEN_CMD_CODE(_AddBARsp));
+
+	res = rtw_enqueue_cmd(pcmdpriv, ph2c);
+
+exit:
+
 _func_exit_;
 
 	return res;
@@ -3744,6 +3823,16 @@ exit:
 _func_exit_;	
 }
 
+
+void rtw_getmacreg_cmdrsp_callback(_adapter*	padapter,  struct cmd_obj *pcmd)
+{
+
+_func_enter_;	
+
+	rtw_free_cmd_obj(pcmd);
+
+_func_exit_;
+}
 
 void rtw_joinbss_cmd_callback(_adapter*	padapter,  struct cmd_obj *pcmd)
 {

@@ -1496,8 +1496,6 @@ static void rtw_usb_if1_deinit(_adapter *if1)
 	#endif
 #endif
 
-	rtw_cancel_all_timer(if1);
-
 #ifdef CONFIG_WOWLAN
 	pwrctl->wowlan_mode=_FALSE;
 #endif //CONFIG_WOWLAN
@@ -1674,6 +1672,9 @@ _func_enter_;
 
 	LeaveAllPowerSaveMode(padapter);
 
+
+	/* stop cmd thread */
+	rtw_stop_cmd_thread(padapter);
 #ifdef CONFIG_CONCURRENT_MODE
 #ifdef CONFIG_MULTI_VIR_IFACES
 	rtw_drv_stop_vir_ifaces(dvobj);
@@ -1682,6 +1683,10 @@ _func_enter_;
 #endif //CONFIG_CONCURRENT_MODE
 
 	#ifdef CONFIG_BT_COEXIST
+	#ifdef CONFIG_BT_COEXIST_SOCKET_TRX
+	if (GET_HAL_DATA(padapter)->EEPROMBluetoothCoexist)
+		rtw_btcoex_close_socket(padapter);
+	#endif
 	rtw_btcoex_HaltNotify(padapter);
 	#endif
 

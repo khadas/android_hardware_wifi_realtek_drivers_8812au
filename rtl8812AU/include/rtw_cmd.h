@@ -600,6 +600,11 @@ struct readTSSI_rsp {
 	u8	value;
 };
 
+struct readMAC_parm {
+	u8 len;
+	u32	addr;
+};
+
 struct writeBB_parm {
 	u8	offset;
 	u8	value;
@@ -882,6 +887,14 @@ struct addBaReq_parm
 	u8	addr[ETH_ALEN];
 };
 
+struct addBaRsp_parm {
+	unsigned int tid;
+	unsigned int start_seq;
+	u8 addr[ETH_ALEN];
+	u8 status;
+	u8 size;
+};
+
 /*H2C Handler index: 46 */
 struct set_ch_parm {
 	u8 ch;
@@ -1022,6 +1035,8 @@ u8 rtw_disassoc_cmd(_adapter *padapter, u32 deauth_timeout_ms, bool enqueue);
 extern u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype, bool enqueue);
 extern u8 rtw_setdatarate_cmd(_adapter  *padapter, u8 *rateset);
 extern u8 rtw_setbasicrate_cmd(_adapter  *padapter, u8 *rateset);
+extern u8 rtw_getmacreg_cmd(_adapter*padapter, u8 len, u32 addr);
+extern void rtw_usb_catc_trigger_cmd(_adapter*padapter, const char *caller);
 extern u8 rtw_setbbreg_cmd(_adapter * padapter, u8 offset, u8 val);
 extern u8 rtw_setrfreg_cmd(_adapter * padapter, u8 offset, u32 val);
 extern u8 rtw_getbbreg_cmd(_adapter * padapter, u8 offset, u8 * pval);
@@ -1035,6 +1050,7 @@ extern u8 rtw_setfwdig_cmd(_adapter*padapter, u8 type);
 extern u8 rtw_setfwra_cmd(_adapter*padapter, u8 type);
 
 extern u8 rtw_addbareq_cmd(_adapter*padapter, u8 tid, u8 *addr);
+extern u8 rtw_addbarsp_cmd(_adapter *padapter, u8 *addr, u16 tid, u8 status, u8 size, u16 start_seq);
 // add for CONFIG_IEEE80211W, none 11w also can use
 extern u8 rtw_reset_securitypriv_cmd(_adapter*padapter);
 extern u8 rtw_free_assoc_resources_cmd(_adapter *padapter);
@@ -1090,6 +1106,7 @@ extern void rtw_readtssi_cmdrsp_callback(_adapter*	padapter,  struct cmd_obj *pc
 extern void rtw_setstaKey_cmdrsp_callback(_adapter  *padapter,  struct cmd_obj *pcmd);
 extern void rtw_setassocsta_cmdrsp_callback(_adapter  *padapter,  struct cmd_obj *pcmd);
 extern void rtw_getrttbl_cmdrsp_callback(_adapter  *padapter,  struct cmd_obj *pcmd);
+extern void rtw_getmacreg_cmdrsp_callback(_adapter *padapter,  struct cmd_obj *pcmd);
 
 
 struct _cmd_callback {
@@ -1173,10 +1190,13 @@ enum rtw_h2c_cmd
 	GEN_CMD_CODE(_ChkBMCSleepq), /*63*/
 
 	GEN_CMD_CODE(_RunInThreadCMD), /*64*/
+	GEN_CMD_CODE(_AddBARsp) , /*65*/
 
 	MAX_H2CCMD
 };
 
+#define _GetMACReg_CMD_		_Read_MACREG_CMD_
+#define _SetMACReg_CMD_ 	_Write_MACREG_CMD_
 #define _GetBBReg_CMD_		_Read_BBREG_CMD_
 #define _SetBBReg_CMD_ 		_Write_BBREG_CMD_
 #define _GetRFReg_CMD_ 		_Read_RFREG_CMD_
@@ -1185,7 +1205,7 @@ enum rtw_h2c_cmd
 #ifdef _RTW_CMD_C_
 struct _cmd_callback 	rtw_cmd_callback[] = 
 {
-	{GEN_CMD_CODE(_Read_MACREG), NULL}, /*0*/
+	{GEN_CMD_CODE(_Read_MACREG), &rtw_getmacreg_cmdrsp_callback}, /*0*/
 	{GEN_CMD_CODE(_Write_MACREG), NULL}, 
 	{GEN_CMD_CODE(_Read_BBREG), &rtw_getbbrfreg_cmdrsp_callback},
 	{GEN_CMD_CODE(_Write_BBREG), NULL},
@@ -1258,6 +1278,7 @@ struct _cmd_callback 	rtw_cmd_callback[] =
 	{GEN_CMD_CODE(_ChkBMCSleepq), NULL}, /*63*/
 
 	{GEN_CMD_CODE(_RunInThreadCMD), NULL},/*64*/
+	{GEN_CMD_CODE(_AddBARsp), NULL}, /*65*/
 };
 #endif
 

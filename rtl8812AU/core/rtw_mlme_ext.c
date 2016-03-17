@@ -9368,6 +9368,59 @@ inline void issue_addba_rsp(_adapter *adapter, unsigned char *ra, u8 tid, u16 st
 }
 
 /**
+ * issue_addba_rsp_wait_ack - TX ADDBA_RESP and wait ack
+ * @adapter: the adapter to TX
+ * @ra: receiver address
+ * @tid: tid
+ * @status: status code
+ * @size: the announced AMPDU buffer size
+ * @try_cnt: the maximal TX count to try
+ * @wait_ms: == 0 means that there is no need to wait ack through C2H_CCX_TX_RPT
+ *           > 0 means you want to wait ack through C2H_CCX_TX_RPT, and the value of wait_ms means the interval between each TX
+ */
+inline u8 issue_addba_rsp_wait_ack(_adapter *adapter, unsigned char *ra, u8 tid, u16 status, u8 size, int try_cnt, int wait_ms)
+{
+	int ret = _FAIL;
+	int i = 0;
+	u32 start = rtw_get_current_time();
+
+	do {
+		ret = issue_action_ba(adapter, ra, RTW_WLAN_ACTION_ADDBA_RESP
+			, tid
+			, size
+			, status
+			, 0 /* unused */
+			, _TRUE
+		);
+
+		i++;
+
+		if (adapter->bDriverStopped || adapter->bSurpriseRemoved)
+			break;
+
+		if (i < try_cnt && wait_ms > 0 && ret == _FAIL)
+			rtw_msleep_os(wait_ms);
+
+	} while ((i < try_cnt) && ((ret == _FAIL) || (wait_ms == 0)));
+
+	if (ret != _FAIL) {
+		ret = _SUCCESS;
+	#ifndef DBG_XMIT_ACK
+		/* goto exit; */
+	#endif
+	}
+
+	if (try_cnt && wait_ms) {
+		DBG_871X(FUNC_ADPT_FMT" ra="MAC_FMT" tid=%u%s, %d/%d in %u ms\n"
+			, FUNC_ADPT_ARG(adapter), MAC_ARG(ra), tid
+			, ret == _SUCCESS?", acked":"", i, try_cnt, rtw_get_passing_time_ms(start));
+	}
+
+exit:
+	return ret;
+}
+
+/**
  * issue_del_ba - TX DELBA
  * @adapter: the adapter to TX
  * @ra: receiver address
@@ -13437,6 +13490,48 @@ u8 add_ba_hdl(_adapter *padapter, unsigned char *pbuf)
 }
 
 
+u8 add_ba_rsp_hdl(_adapter *padapter, unsigned char *pbuf)
+{
+	struct addBaRsp_parm *pparm = (struct addBaRsp_parm *)pbuf;
+	u8 ret = _TRUE, i = 0, try_cnt = 3, wait_ms = 50;
+	struct recv_reorder_ctrl *preorder_ctrl;
+	struct sta_priv *pstapriv = &padapter->stapriv;
+	struct sta_info *psta;
+
+	psta = rtw_get_stainfo(pstapriv, pparm->addr);
+	if (!psta)
+		goto exit;
+
+	preorder_ctrl = &psta->recvreorder_ctrl[pparm->tid];
+	ret = issue_addba_rsp_wait_ack(padapter, pparm->addr, pparm->tid, pparm->status, pparm->size, 3, 50);
+
+	#ifdef CONFIG_UPDATE_INDICATE_SEQ_WHILE_PROCESS_ADDBA_REQ
+	/* status = 0 means accept this addba req, so update indicate seq = start_seq under this compile flag */
+	if (pparm->status == 0) {
+		preorder_ctrl->indicate_seq = pparm->start_seq;
+		#ifdef DBG_RX_SEQ
+		DBG_871X("DBG_RX_SEQ %s:%d IndicateSeq: %d, start_seq: %d\n", __func__, __LINE__,
+			preorder_ctrl->indicate_seq, pparm->start_seq);
+		#endif
+	}
+	#else
+	preorder_ctrl->indicate_seq = 0xffff;
+	#endif
+
+	/*
+	  * status = 0 means accept this addba req
+	  * status = 37 means reject this addba req
+	  */
+	if (pparm->status == 0) {
+		preorder_ctrl->enable = _TRUE;
+		preorder_ctrl->ampdu_size = pparm->size;
+	} else if (pparm->status == 37)
+		preorder_ctrl->enable = _FALSE;
+
+exit:
+	return H2C_SUCCESS;
+}
+
 u8 chk_bmc_sleepq_cmd(_adapter* padapter)
 {
 	struct cmd_obj *ph2c;
@@ -15108,5 +15203,41 @@ u8 run_in_thread_hdl(_adapter *padapter, u8 *pbuf)
 		p->func(p->context);
 
 	return H2C_SUCCESS;
+}
+
+u8 rtw_getmacreg_hdl(_adapter *padapter, u8 *pbuf)
+{
+
+	struct readMAC_parm*	preadmacparm = NULL;
+	u8 sz = 0;
+	u32	addr = 0;
+	u32	value = 0;
+
+	if(!pbuf)
+		return H2C_PARAMETERS_ERROR;
+
+	preadmacparm = (struct readMAC_parm* )pbuf;
+	
+	sz = preadmacparm->len;
+	addr = preadmacparm->addr;
+	value = 0;
+
+	switch(sz){
+		case 1:
+			value = rtw_read8(padapter, addr);
+			break;
+		case 2:
+			value = rtw_read16(padapter, addr);
+			break;
+		case 4:
+			value = rtw_read32(padapter, addr);
+			break;
+		default:
+			DBG_871X("%s: Unknow size\n", __func__);
+			break;
+	}
+	DBG_871X("%s: addr:0x%02x valeu:0x%02x\n", __func__, addr, value);
+
+	return 	H2C_SUCCESS;
 }
 
